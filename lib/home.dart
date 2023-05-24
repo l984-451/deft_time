@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:ui';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:codable/codable.dart';
@@ -243,6 +244,7 @@ class _HomeState extends State<Home> {
     showCupertinoModalBottomSheet(
       context: context,
       builder: (context) => CustomerModal(
+        prefs: prefs!,
         callback: (int id) async {
           Navigator.of(context).popUntil((route) => route.isFirst);
           await sheetsManager.clockOut();
@@ -263,19 +265,11 @@ class _HomeState extends State<Home> {
       valueListenable: sheetsManager.duration,
       builder: (context, value, _) {
         return Text(
-          formatDuration(value),
+          _formatDuration(value, showSeconds: true),
           style: const TextStyle(fontSize: 30, fontFeatures: [FontFeature.tabularFigures()]),
         );
       },
     );
-  }
-
-  String formatDuration(int seconds) {
-    Duration duration = Duration(seconds: seconds);
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
   }
 
   void _onClockInOut() {
@@ -458,11 +452,13 @@ class _HomeState extends State<Home> {
         showCupertinoModalBottomSheet(
           context: context,
           builder: (context) => CustomerModal(
+            prefs: prefs!,
             callback: (int id) {
               Navigator.of(context).popUntil((route) => route.isFirst);
               setState(() {
                 sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
                 _loadJobDefaults(sheetsManager.customer);
+                sheetsManager.updateSheet();
               });
             },
           ),
@@ -531,32 +527,65 @@ class _HomeState extends State<Home> {
   }
 
   Widget _timesheetSeparator(String date) {
-    int totalDuration = 0;
-    for (TimeSheet sheet in sheetsManager.timesheets) {
-      if (sheet.date == date) {
-        totalDuration += sheet.duration!;
-      }
-    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 30, 10, 10),
       child: Container(
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), color: Colors.grey.shade200),
         height: 50,
         child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  DateFormat('EEEE M/d').format(DateTime.parse(date)),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      DateFormat('EEEE').format(DateTime.parse(date)),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    Text(
+                      DateFormat('MMM d').format(DateTime.parse(date)),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
                 ),
-                Text(
-                  'Total: ${formatDuration(totalDuration)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const Spacer(),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ValueListenableBuilder(
+                      valueListenable: sheetsManager.duration,
+                      builder: (context, value, _) {
+                        int totalDuration = 0;
+                        for (TimeSheet sheet in sheetsManager.timesheets) {
+                          if (sheet.date == date) {
+                            totalDuration += sheet.duration!;
+                          }
+                        }
+                        if (sheetsManager.currentSheet?.date != null && sheetsManager.currentSheet!.date! == date) {
+                          totalDuration += value;
+                        }
+                        return Text(
+                          _formatDuration(totalDuration),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                        );
+                      },
+                    ),
+                    const Text(
+                      'Total',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ],
                 ),
-              ],
-            )),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -581,7 +610,7 @@ class _HomeState extends State<Home> {
       children: [
         PlatformListTile(
           trailing: Text(
-            formatDuration(sheet.duration!),
+            _formatDuration(sheet.duration!),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           title: AutoSizeText(
@@ -690,37 +719,36 @@ class _HomeState extends State<Home> {
   }
 }
 
-/// Returns a formatted string for the given Duration [d] to be DD:HH:mm:ss
-/// and ignore if 0.
-String formatDuration(int seconds) {
-  final days = seconds ~/ Duration.secondsPerDay;
-  seconds -= days * Duration.secondsPerDay;
-  final hours = seconds ~/ Duration.secondsPerHour;
-  seconds -= hours * Duration.secondsPerHour;
-  final minutes = seconds ~/ Duration.secondsPerMinute;
-  seconds -= minutes * Duration.secondsPerMinute;
+String _formatDuration(int seconds, {bool showSeconds = false}) {
+  // Calculate hours, minutes and seconds
+  int hours = seconds ~/ 3600;
+  int minutes = (seconds % 3600) ~/ 60;
+  int remainingSeconds = seconds % 60;
 
-  final List<String> tokens = [];
-  if (days != 0) {
-    tokens.add('${days}d');
+  if (showSeconds) {
+    if (hours > 0) {
+      return '${hours.toString()}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+    } else if (minutes > 0) {
+      return '${minutes.toString().padLeft(2, '0')} min:${remainingSeconds.toString().padLeft(2, '0')} sec';
+    } else {
+      return '$remainingSeconds sec';
+    }
+  } else {
+    if (hours > 0) {
+      return '${hours.toString()}:${minutes.toString().padLeft(2, '0')}';
+    } else {
+      return '$minutes min';
+    }
   }
-  if (tokens.isNotEmpty || hours != 0) {
-    tokens.add('${hours}h');
-  }
-  if (tokens.isNotEmpty || minutes != 0) {
-    tokens.add('${minutes}m');
-  }
-
-  return tokens.join(':');
 }
 
-DateTime roundToMinute(DateTime dateTime) {
-  dateTime = dateTime.add(const Duration(seconds: 30));
-  return (dateTime.isUtc ? DateTime.utc : DateTime.new)(
-    dateTime.year,
-    dateTime.month,
-    dateTime.day,
-    dateTime.hour,
-    dateTime.minute,
-  );
-}
+// DateTime _roundToMinute(DateTime dateTime) {
+//   dateTime = dateTime.add(const Duration(seconds: 30));
+//   return (dateTime.isUtc ? DateTime.utc : DateTime.new)(
+//     dateTime.year,
+//     dateTime.month,
+//     dateTime.day,
+//     dateTime.hour,
+//     dateTime.minute,
+//   );
+// }

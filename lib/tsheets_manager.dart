@@ -567,6 +567,8 @@ class SheetsManager extends ChangeNotifier {
   }
 
   Future<void> loadServerData() async {
+    serverDataLoading = true;
+    notifyListeners();
     await getUsers();
     await _getProjects();
     await _getAllJobCodes();
