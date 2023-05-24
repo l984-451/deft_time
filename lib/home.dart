@@ -1,0 +1,726 @@
+import 'dart:async';
+import 'dart:ui';
+import 'package:auto_size_text/auto_size_text.dart';
+import 'package:codable/codable.dart';
+import 'package:collection/collection.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_platform_widgets/flutter_platform_widgets.dart';
+import 'package:grouped_list/grouped_list.dart';
+import 'package:intl/intl.dart';
+import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:time/app_constants.dart';
+import 'package:time/tsheets_data_models.dart';
+import 'package:time/tsheets_manager.dart';
+import 'package:time/widgets/customer_modal.dart';
+import 'package:time/widgets/service_item_modal.dart';
+
+class Home extends StatefulWidget {
+  const Home({Key? key}) : super(key: key);
+
+  @override
+  State<Home> createState() => _HomeState();
+}
+
+class _HomeState extends State<Home> {
+  final _tabController = PlatformTabController();
+  SharedPreferences? prefs;
+  final sheetsManager = SheetsManager.instance;
+
+  // Time Clock and logging definitions
+
+  // Time Sheet entries defintions
+  bool _loadingTimesheets = false;
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((localPrefs) {
+      prefs = localPrefs;
+      String? user = localPrefs.getString('user');
+      if (user != null) {
+        globalUser = convertStringToCodableObject(user, User.fromJson);
+      }
+      String defaultsString = prefs!.getString('jobDefaults') ?? '';
+      List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
+      if (defaultList.isNotEmpty && sheetsManager.currentSheet == null) {
+        int? recentJob = prefs!.getInt('jobRecent');
+        JobDefaults? x;
+        if (recentJob != null) {
+          // print('recent job is not null');
+          x = defaultList.firstWhereOrNull((element) => element.job?.id == recentJob);
+        }
+        x ??= defaultList.first;
+
+        sheetsManager.customer = x.job;
+        sheetsManager.billable = x.billable;
+        sheetsManager.serviceItem = x.serviceItem;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PlatformTabScaffold(
+      // cupertino: (context, platform) => CupertinoTabScaffoldData(resizeToAvoidBottomInset: false),
+      iosContentBottomPadding: true,
+      iosContentPadding: true,
+      tabController: _tabController,
+      appBarBuilder: (_, index) => _buildAppBar(index),
+      bodyBuilder: (_, index) => _buildBody(index),
+      items: _bottomBarItems(),
+    );
+  }
+
+  PlatformAppBar _buildAppBar(int index) {
+    if (index == 0) {
+      return PlatformAppBar(
+        title: const Text('Time Clock'),
+        trailingActions: [
+          PlatformIconButton(
+            icon: Icon(PlatformIcons(context).accountCircleSolid),
+            onPressed: () {
+              showCupertinoModalBottomSheet(context: context, builder: (context) => _userPickerView());
+            },
+          )
+        ],
+        leading: _leadingWidget(),
+      );
+    } else {
+      return PlatformAppBar(
+        title: const Text('Time Entries'),
+      );
+    }
+  }
+
+  Widget _leadingWidget() {
+    return Consumer<SheetsManager>(builder: (context, _, __) {
+      if (sheetsManager.serverDataLoading) {
+        return PlatformCircularProgressIndicator();
+      } else {
+        return const SizedBox.shrink();
+      }
+    });
+  }
+
+  Widget _buildBody(int index) {
+    if (_tabController.index(context) == 0) {
+      return Consumer<SheetsManager>(builder: (context, _, __) {
+        if (sheetsManager.firstLoad) {
+          return Center(
+            child: PlatformCircularProgressIndicator(),
+          );
+        } else {
+          return _clockView();
+        }
+      });
+    } else {
+      return Consumer<SheetsManager>(builder: (context, _, __) {
+        // sheetsManager.getTimesheets();
+        return _entriesView();
+      });
+    }
+  }
+
+  List<BottomNavigationBarItem> _bottomBarItems() {
+    return [
+      BottomNavigationBarItem(icon: Icon(PlatformIcons(context).clockSolid), label: 'Clock'),
+      BottomNavigationBarItem(icon: Icon(PlatformIcons(context).checkMarkCircledOutline), label: 'Entries'),
+    ];
+  }
+
+  Widget _clockView() {
+    if (globalUser == null) {
+      return Center(
+        child: PlatformElevatedButton(
+          onPressed: () {
+            showCupertinoModalBottomSheet(context: context, builder: (context) => _userPickerView());
+          },
+          child: const Text('Select User'),
+        ),
+      );
+    }
+    return CustomScrollView(
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(
+                height: 20,
+              ),
+              _buildDurationCounter(),
+              const SizedBox(
+                height: 20,
+              ),
+              SizedBox(
+                height: 50,
+                width: 200,
+                child: PlatformElevatedButton(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 15,
+                  ),
+                  child: Text('Start Time: ${DateFormat('jm').format(sheetsManager.startTime ?? DateTime.now())}'),
+                  onPressed: () {
+                    showPlatformDatePicker(
+                        context: context,
+                        initialDate: sheetsManager.startTime ?? DateTime.now(),
+                        firstDate: DateTime.now().subtract(const Duration(days: 3)),
+                        lastDate: DateTime.now(),
+                        cupertino: (context, platform) => CupertinoDatePickerData(
+                              mode: CupertinoDatePickerMode.dateAndTime,
+                            )).then(
+                      (value) => setState(
+                        () {
+                          if (value != null) {
+                            sheetsManager.startTime = value;
+                            sheetsManager.updateSheet();
+                            sheetsManager.createTimer();
+                          }
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const Spacer(),
+              _customerCell(),
+              const SizedBox(
+                height: 20,
+              ),
+              _billableCell(),
+              _serviceItemCell(sheetsManager.serviceItem),
+              const Spacer(),
+              _notesInput(),
+              const SizedBox(
+                height: 20,
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  SizedBox(
+                    width: 150,
+                    child: PlatformElevatedButton(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 15,
+                      ),
+                      onPressed: () => _onSwitchJobPressed(),
+                      child: const Text('Switch Job'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 150,
+                    child: PlatformElevatedButton(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 15,
+                      ),
+                      onPressed: () => _onClockInOut(),
+                      color: sheetsManager.currentSheet != null ? Colors.red : Colors.green,
+                      child: Text(sheetsManager.currentSheet != null ? 'Clock Out' : 'Clock In'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(
+                height: 20,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _onSwitchJobPressed() async {
+    showCupertinoModalBottomSheet(
+      context: context,
+      builder: (context) => CustomerModal(
+        callback: (int id) async {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          await sheetsManager.clockOut();
+          setState(() {
+            sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
+            sheetsManager.startTime = DateTime.now();
+            _loadJobDefaults(sheetsManager.customer);
+          });
+          await sheetsManager.clockIn();
+          setState(() {});
+        },
+      ),
+    );
+  }
+
+  Widget _buildDurationCounter() {
+    return ValueListenableBuilder(
+      valueListenable: sheetsManager.duration,
+      builder: (context, value, _) {
+        return Text(
+          formatDuration(value),
+          style: const TextStyle(fontSize: 30, fontFeatures: [FontFeature.tabularFigures()]),
+        );
+      },
+    );
+  }
+
+  String formatDuration(int seconds) {
+    Duration duration = Duration(seconds: seconds);
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
+  }
+
+  void _onClockInOut() {
+    if (sheetsManager.currentSheet != null) {
+      if (sheetsManager.customer == null) {
+        showQuickPopup(context, 'Unable', 'Customer is not selected');
+      } else if (sheetsManager.billable == null) {
+        showQuickPopup(context, 'Unable', 'Billable is not selected');
+      } else if (sheetsManager.serviceItem == null) {
+        showQuickPopup(context, 'Unable', 'Service Item');
+      } else if (sheetsManager.notesController.text.isEmpty) {
+        showQuickPopup(context, 'Unable', 'Notes is empty');
+      } else {
+        sheetsManager.clockOut();
+      }
+    } else {
+      if (sheetsManager.customer == null) {
+        showQuickPopup(context, 'Unable', 'Customer is not selected');
+      } else if (sheetsManager.billable == null) {
+        showQuickPopup(context, 'Unable', 'Billable is not selected');
+      } else if (sheetsManager.serviceItem == null) {
+        showQuickPopup(context, 'Unable', 'Service Item');
+      } else {
+        sheetsManager.startTime ??= DateTime.now();
+        sheetsManager.clockIn();
+        _saveJobDefaults(JobDefaults(
+          sheetsManager.customer!,
+          sheetsManager.billable,
+          sheetsManager.serviceItem,
+          sheetsManager.notesController.text,
+        ));
+      }
+    }
+  }
+
+  Widget _notesInput() {
+    return PlatformListTile(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Notes',
+            style: TextStyle(fontSize: 15),
+          ),
+          SizedBox(
+            height: 150,
+            child: PlatformTextField(
+              maxLines: 5,
+              keyboardType: TextInputType.text,
+              textInputAction: TextInputAction.done,
+              scrollPadding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              controller: sheetsManager.notesController,
+              onEditingComplete: () {
+                FocusManager.instance.primaryFocus?.unfocus();
+                sheetsManager.updateSheet();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _serviceItemCell(CustomFieldItem? serviceItem) {
+    return PlatformListTile(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Service Item',
+            style: TextStyle(color: Colors.grey, fontSize: 15),
+          ),
+          Text(
+            serviceItem?.name ?? 'Unknown',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const Text(
+            '',
+            style: TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+      trailing: Icon(PlatformIcons(context).rightChevron),
+      onTap: () {
+        showCupertinoModalBottomSheet(
+          context: context,
+          builder: (_) => ServiceItemModal(
+            callback: (CustomFieldItem item) {
+              setState(() {
+                sheetsManager.serviceItem = item;
+                sheetsManager.updateSheet();
+                Navigator.pop(context);
+              });
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _billableCell() {
+    return PlatformListTile(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Billable',
+              style: TextStyle(color: Colors.grey, fontSize: 15),
+            ),
+            Text(
+              sheetsManager.billable ?? 'Unknown',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Text(
+              '',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        trailing: PlatformSwitch(
+          value: sheetsManager.billable == 'Yes',
+          onChanged: (newVal) => _changeBillable(),
+        ),
+        onTap: () => _changeBillable());
+  }
+
+  void _changeBillable() {
+    setState(() {
+      if (sheetsManager.billable == 'Yes') {
+        sheetsManager.billable = 'No';
+      } else {
+        sheetsManager.billable = 'Yes';
+      }
+    });
+    _saveJobDefaults(JobDefaults(
+      sheetsManager.customer,
+      sheetsManager.billable,
+      sheetsManager.serviceItem,
+      sheetsManager.notesController.text,
+    ));
+    if (sheetsManager.currentSheet != null) {
+      sheetsManager.updateSheet();
+    }
+  }
+
+  Widget _customerCell() {
+    JobCodes? parentJob = _getParentJob(sheetsManager.customer?.id);
+    JobCodes? parentParentJob;
+
+    if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
+
+    String parentNames = '';
+
+    if (parentJob != null) {
+      parentNames = parentJob.name;
+      if (parentParentJob != null) {
+        parentNames = '${parentParentJob.name} > ${parentJob.name}';
+      }
+    }
+    return PlatformListTile(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Customer',
+            style: TextStyle(color: Colors.grey, fontSize: 15),
+          ),
+          Text(
+            sheetsManager.customer?.name ?? 'Unknown',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Text(
+            parentNames,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+      trailing: Icon(PlatformIcons(context).rightChevron),
+      onTap: () {
+        showCupertinoModalBottomSheet(
+          context: context,
+          builder: (context) => CustomerModal(
+            callback: (int id) {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              setState(() {
+                sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
+                _loadJobDefaults(sheetsManager.customer);
+              });
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _entriesView() {
+    if (globalUser == null) {
+      return const Text('No user chosen. Navigate to "Users" page and choose a user.');
+    }
+    if (sheetsManager.timesheets.isEmpty) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Text('No Timesheets available for this week.'),
+          ),
+          SizedBox(
+            width: 250,
+            child: PlatformElevatedButton(
+              padding: const EdgeInsets.symmetric(horizontal: 0),
+              onPressed: () async {
+                setState(() {
+                  _loadingTimesheets = true;
+                });
+                final tempSheets = await getUserTimeSheets();
+                sheetsManager.timesheets.clear();
+                setState(() {
+                  sheetsManager.timesheets = tempSheets;
+                  _loadingTimesheets = false;
+                });
+              },
+              child: Stack(
+                children: [
+                  const Align(alignment: Alignment.center, child: Text('Refresh Timesheets')),
+                  _loadingTimesheets
+                      ? Positioned(
+                          right: 10,
+                          child: PlatformCircularProgressIndicator(
+                            cupertino: (context, platform) => CupertinoProgressIndicatorData(color: Colors.white),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      return MediaQuery.removePadding(
+        removeTop: true,
+        context: context,
+        child: GroupedListView(
+          elements: sheetsManager.timesheets,
+          groupBy: (TimeSheet e) => e.date!,
+          groupSeparatorBuilder: (String value) => _timesheetSeparator(value),
+          indexedItemBuilder: (context, element, index) => _timesheetTile(element),
+          order: GroupedListOrder.DESC,
+        ),
+      );
+    }
+  }
+
+  Widget _timesheetSeparator(String date) {
+    int totalDuration = 0;
+    for (TimeSheet sheet in sheetsManager.timesheets) {
+      if (sheet.date == date) {
+        totalDuration += sheet.duration!;
+      }
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 30, 10, 10),
+      child: Container(
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), color: Colors.grey.shade200),
+        height: 50,
+        child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  DateFormat('EEEE M/d').format(DateTime.parse(date)),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                Text(
+                  'Total: ${formatDuration(totalDuration)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ],
+            )),
+      ),
+    );
+  }
+
+  Widget _timesheetTile(TimeSheet sheet) {
+    JobCodes? job = _getJob(sheet.jobcode_id!);
+    JobCodes? parentJob = _getParentJob(sheet.jobcode_id!);
+    JobCodes? parentParentJob;
+
+    if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
+
+    String parentNames = '';
+
+    if (parentJob != null) {
+      parentNames = parentJob.name;
+      if (parentParentJob != null) {
+        parentNames = '${parentParentJob.name} > ${parentJob.name}';
+      }
+    }
+
+    return Column(
+      children: [
+        PlatformListTile(
+          trailing: Text(
+            formatDuration(sheet.duration!),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          title: AutoSizeText(
+            job?.name ?? 'N/A',
+            maxLines: 1,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          subtitle: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                parentNames,
+              ),
+              Text('Billable: ${sheet.billable}'),
+            ],
+          ),
+        ),
+        const Divider(),
+      ],
+    );
+  }
+
+  Widget _userPickerView() {
+    String usersString = prefs?.getString('users') ?? '';
+    List<User> users = convertStringToCodableList(usersString, User.fromJson) ?? [];
+    getUsers().then((newUsers) {
+      setState(() {
+        users = newUsers;
+      });
+    });
+    return Center(
+      child: ListView.builder(
+        itemBuilder: (context, index) {
+          return _userListTile(users[index]);
+        },
+        itemCount: users.length,
+      ),
+    );
+  }
+
+  Widget _userListTile(User user) {
+    bool selected = false;
+    if (globalUser?.display_name == user.display_name) selected = true;
+    return Column(
+      children: [
+        const Divider(
+          height: 1,
+          thickness: 1,
+        ),
+        PlatformListTile(
+          title: Text(user.display_name ?? 'N/A'),
+          trailing: selected ? Icon(PlatformIcons(context).checkMarkCircled) : null,
+          onTap: () async {
+            globalUser = user;
+            String? codableUser = convertCodableObjectToString(globalUser);
+            if (codableUser != null) {
+              prefs!.setString('user', codableUser);
+            }
+            setState(() {
+              sheetsManager.duration.value = 0;
+              sheetsManager.durationTimer?.cancel();
+              sheetsManager.currentSheet = null;
+            });
+            Navigator.pop(context);
+            await sheetsManager.getCurrentTimesheet();
+            await sheetsManager.getTimesheets();
+            await sheetsManager.loadServerData();
+          },
+        ),
+      ],
+    );
+  }
+
+  JobCodes? _getJob(int jobcodeId) {
+    return sheetsManager.allJobCodes.firstWhereOrNull((e) => e.id == jobcodeId);
+  }
+
+  JobCodes? _getParentJob(int? jobcodeId) {
+    if (jobcodeId == null) return null;
+    JobCodes? job = sheetsManager.allJobCodes.firstWhereOrNull((e) => e.id == jobcodeId);
+    JobCodes? parentJob = sheetsManager.allJobCodes.firstWhereOrNull((e) => e.id == job?.parent_id);
+    return parentJob;
+  }
+
+  void _loadJobDefaults(JobCodes? job) {
+    String defaultsString = prefs!.getString('jobDefaults') ?? '';
+    List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
+    JobDefaults? x = defaultList.firstWhereOrNull((element) => element.job?.id == job?.id);
+    if (x != null) {
+      sheetsManager.billable = x.billable;
+      sheetsManager.serviceItem = x.serviceItem;
+    }
+  }
+
+  void _saveJobDefaults(JobDefaults defaults) {
+    String defaultsString = prefs!.getString('jobDefaults') ?? '';
+    List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
+    int x = defaultList.indexWhere((element) => element.job?.id == defaults.job?.id);
+    if (x != -1) {
+      defaultList.removeAt(x);
+    }
+    defaultList.add(defaults);
+    prefs!.setString('jobDefaults', convertCodableListToString(defaultList) ?? '');
+    prefs!.setInt('jobRecent', defaults.job?.id ?? 0);
+  }
+}
+
+/// Returns a formatted string for the given Duration [d] to be DD:HH:mm:ss
+/// and ignore if 0.
+String formatDuration(int seconds) {
+  final days = seconds ~/ Duration.secondsPerDay;
+  seconds -= days * Duration.secondsPerDay;
+  final hours = seconds ~/ Duration.secondsPerHour;
+  seconds -= hours * Duration.secondsPerHour;
+  final minutes = seconds ~/ Duration.secondsPerMinute;
+  seconds -= minutes * Duration.secondsPerMinute;
+
+  final List<String> tokens = [];
+  if (days != 0) {
+    tokens.add('${days}d');
+  }
+  if (tokens.isNotEmpty || hours != 0) {
+    tokens.add('${hours}h');
+  }
+  if (tokens.isNotEmpty || minutes != 0) {
+    tokens.add('${minutes}m');
+  }
+
+  return tokens.join(':');
+}
+
+DateTime roundToMinute(DateTime dateTime) {
+  dateTime = dateTime.add(const Duration(seconds: 30));
+  return (dateTime.isUtc ? DateTime.utc : DateTime.new)(
+    dateTime.year,
+    dateTime.month,
+    dateTime.day,
+    dateTime.hour,
+    dateTime.minute,
+  );
+}
