@@ -144,7 +144,6 @@ Future<List<Project>> getProjects() async {
   final Map<String, dynamic> projectsMap = body['results']['projects'];
   for (Map<String, dynamic> jobCode in projectsMap.values) {
     Project code = Project.fromJson(jobCode);
-
     projectsTemp.add(code);
   }
   return projectsTemp;
@@ -237,6 +236,7 @@ class SheetsManager extends ChangeNotifier {
       }
     }
     list.sortBy((element) => element.name);
+
     return list;
   }
 
@@ -431,7 +431,13 @@ class SheetsManager extends ChangeNotifier {
   }
 
   Future<void> _getProjects() async {
-    projects = await getProjects();
+    List<Project> tempProjects = await getProjects();
+    projects.clear();
+    for (var project in tempProjects) {
+      if (allJobCodes.firstWhereOrNull((element) => element.id == project.jobcode_id) != null) {
+        projects.add(project);
+      }
+    }
     prefs.setString('projects', convertCodableListToString(projects) ?? '');
   }
 

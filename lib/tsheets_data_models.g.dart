@@ -137,6 +137,9 @@ JobDefaults _$JobDefaultsFromJson(Map<String, dynamic> json) => JobDefaults(
       json['job'] == null
           ? null
           : JobCodes.fromJson(json['job'] as Map<String, dynamic>),
+      json['parentJob'] == null
+          ? null
+          : JobCodes.fromJson(json['parentJob'] as Map<String, dynamic>),
       json['billable'] as String?,
       json['serviceItem'] == null
           ? null
@@ -148,6 +151,7 @@ JobDefaults _$JobDefaultsFromJson(Map<String, dynamic> json) => JobDefaults(
 Map<String, dynamic> _$JobDefaultsToJson(JobDefaults instance) =>
     <String, dynamic>{
       'job': instance.job?.toJson(),
+      'parentJob': instance.parentJob?.toJson(),
       'billable': instance.billable,
       'serviceItem': instance.serviceItem?.toJson(),
       'notes': instance.notes,

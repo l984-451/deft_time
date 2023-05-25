@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer';
 import 'dart:ui';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:codable/codable.dart';
@@ -13,6 +12,7 @@ import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:time/app_constants.dart';
+import 'package:time/debug_menu.dart';
 import 'package:time/tsheets_data_models.dart';
 import 'package:time/tsheets_manager.dart';
 import 'package:time/widgets/customer_modal.dart';
@@ -83,7 +83,16 @@ class _HomeState extends State<Home> {
   PlatformAppBar _buildAppBar(int index) {
     if (index == 0) {
       return PlatformAppBar(
-        title: const Text('Time Clock'),
+        title: PlatformTextButton(
+          padding: EdgeInsets.zero,
+          child: const Text('Time Clock'),
+          onPressed: () => Navigator.push(
+              context,
+              platformPageRoute(
+                context: context,
+                builder: (context) => const DebugMenu(),
+              )),
+        ),
         trailingActions: [
           PlatformIconButton(
             icon: Icon(PlatformIcons(context).accountCircleSolid),
@@ -193,7 +202,7 @@ class _HomeState extends State<Home> {
                   },
                 ),
               ),
-              const Spacer(),
+              _buildQuickItemsRow(),
               _customerCell(),
               const SizedBox(
                 height: 20,
@@ -238,6 +247,84 @@ class _HomeState extends State<Home> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildQuickItemsRow() {
+    String defaultsString = prefs!.getString('jobDefaults') ?? '';
+    List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
+    if (defaultList.isNotEmpty) {
+      List<Widget> children = [];
+      for (var job in defaultList) {
+        children.add(_buildQuickItemCell(job));
+      }
+      return Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 10,
+          runAlignment: WrapAlignment.center,
+          runSpacing: 10,
+          children: children,
+        ),
+      );
+    } else {
+      return const Spacer();
+    }
+  }
+
+  Widget _buildQuickItemCell(JobDefaults job) {
+    String parentNames = '';
+
+    JobCodes? parentJob = _getParentJob(job.job?.id);
+    JobCodes? parentParentJob;
+
+    if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
+
+    if (parentJob != null) {
+      parentNames = parentJob.name;
+      if (parentParentJob != null) {
+        parentNames = '${parentParentJob.name} > ${parentJob.name}';
+      }
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemBlue,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      width: 200,
+      height: 100,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              job.job?.name ?? 'No Customer',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            Text(
+              parentNames,
+              style: const TextStyle(fontSize: 12, color: Colors.white),
+            ),
+            Text(
+              job.serviceItem?.name ?? 'No Service Item',
+              style: const TextStyle(fontSize: 12, color: Colors.white),
+            ),
+            Text(
+              job.billable != null ? 'Billable' : '',
+              style: const TextStyle(fontSize: 12, color: Colors.white),
+            ),
+            Text(
+              job.notes ?? 'No Notes',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -303,12 +390,7 @@ class _HomeState extends State<Home> {
       } else {
         sheetsManager.startTime ??= DateTime.now();
         sheetsManager.clockIn();
-        _saveJobDefaults(JobDefaults(
-          sheetsManager.customer!,
-          sheetsManager.billable,
-          sheetsManager.serviceItem,
-          sheetsManager.notesController.text,
-        ));
+        _saveJobDefaults();
       }
     }
   }
@@ -332,7 +414,10 @@ class _HomeState extends State<Home> {
               controller: sheetsManager.notesController,
               onEditingComplete: () {
                 FocusManager.instance.primaryFocus?.unfocus();
-                sheetsManager.updateSheet();
+                if (sheetsManager.currentSheet != null) {
+                  sheetsManager.updateSheet();
+                }
+                _saveJobDefaults();
               },
             ),
           ),
@@ -371,6 +456,7 @@ class _HomeState extends State<Home> {
                 sheetsManager.updateSheet();
                 Navigator.pop(context);
               });
+              _saveJobDefaults();
             },
           ),
         );
@@ -412,12 +498,7 @@ class _HomeState extends State<Home> {
         sheetsManager.billable = 'Yes';
       }
     });
-    _saveJobDefaults(JobDefaults(
-      sheetsManager.customer,
-      sheetsManager.billable,
-      sheetsManager.serviceItem,
-      sheetsManager.notesController.text,
-    ));
+    _saveJobDefaults();
     if (sheetsManager.currentSheet != null) {
       sheetsManager.updateSheet();
     }
@@ -624,19 +705,19 @@ class _HomeState extends State<Home> {
 
   Widget _timesheetTile(TimeSheet sheet) {
     JobCodes? job = _getJob(sheet.jobcode_id!);
-    JobCodes? parentJob = _getParentJob(sheet.jobcode_id!);
-    JobCodes? parentParentJob;
+    // JobCodes? parentJob = _getParentJob(sheet.jobcode_id!);
+    // JobCodes? parentParentJob;
 
-    if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
+    // if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
 
-    String parentNames = '';
+    // String parentNames = '';
 
-    if (parentJob != null) {
-      parentNames = parentJob.name;
-      if (parentParentJob != null) {
-        parentNames = '${parentParentJob.name} > ${parentJob.name}';
-      }
-    }
+    // if (parentJob != null) {
+    //   parentNames = parentJob.name;
+    //   if (parentParentJob != null) {
+    //     parentNames = '${parentParentJob.name} > ${parentJob.name}';
+    //   }
+    // }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -742,7 +823,14 @@ class _HomeState extends State<Home> {
     }
   }
 
-  void _saveJobDefaults(JobDefaults defaults) {
+  void _saveJobDefaults() {
+    JobDefaults defaults = JobDefaults(
+      sheetsManager.customer,
+      sheetsManager.allJobCodes.firstWhereOrNull((j) => j.id == sheetsManager.customer?.parent_id),
+      sheetsManager.billable,
+      sheetsManager.serviceItem,
+      sheetsManager.notesController.text,
+    );
     String defaultsString = prefs!.getString('jobDefaults') ?? '';
     List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
     int x = defaultList.indexWhere((element) => element.job?.id == defaults.job?.id);
@@ -752,6 +840,7 @@ class _HomeState extends State<Home> {
     defaultList.add(defaults);
     prefs!.setString('jobDefaults', convertCodableListToString(defaultList) ?? '');
     prefs!.setInt('jobRecent', defaults.job?.id ?? 0);
+    setState(() {});
   }
 }
 

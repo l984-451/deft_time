@@ -174,12 +174,14 @@ class JobCodes extends Codable {
 @JsonSerializable(explicitToJson: true)
 class JobDefaults extends Codable {
   JobCodes? job;
+  JobCodes? parentJob;
   String? billable;
   CustomFieldItem? serviceItem;
   String? notes;
 
   JobDefaults(
     this.job,
+    this.parentJob,
     this.billable,
     this.serviceItem,
     this.notes,

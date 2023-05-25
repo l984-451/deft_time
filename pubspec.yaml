@@ -1,10 +1,10 @@
 name: time
 description: A simple app to interface with TSheets Time.
 publish_to: "none"
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
-  sdk: ">=2.19.6 <3.0.0"
+  sdk: ">=3.0.0"
 
 dependencies:
   after_layout: ^1.2.0
