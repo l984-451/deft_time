@@ -359,7 +359,7 @@ class _HomeState extends State<Home> {
         showQuickPopup(context, 'Unable', 'Billable is not selected');
       } else if (sheetsManager.serviceItem == null) {
         showQuickPopup(context, 'Unable', 'Service Item');
-      } else if (sheetsManager.notesController.text.isEmpty) {
+      } else if (sheetsManager.notesController.text.isEmpty || sheetsManager.notesController.text.trim() == '') {
         showQuickPopup(context, 'Unable', 'Notes is empty');
       } else {
         showCupertinoModalBottomSheet(
@@ -375,7 +375,6 @@ class _HomeState extends State<Home> {
                 _loadJobDefaults(sheetsManager.customer);
               });
               await sheetsManager.clockIn();
-              setState(() {});
             },
           ),
         );
@@ -402,32 +401,13 @@ class _HomeState extends State<Home> {
     );
   }
 
-  void _onClockInOut() {
+  Future<void> _onClockInOut() async {
     if (sheetsManager.currentSheet != null) {
-      if (sheetsManager.customer == null) {
-        showQuickPopup(context, 'Unable', 'Customer is not selected');
-      } else if (sheetsManager.billable == null) {
-        showQuickPopup(context, 'Unable', 'Billable is not selected');
-      } else if (sheetsManager.serviceItem == null) {
-        showQuickPopup(context, 'Unable', 'Service Item');
-      } else if (sheetsManager.notesController.text.isEmpty) {
-        showQuickPopup(context, 'Unable', 'Notes is empty');
-      } else {
-        sheetsManager.clockOut();
-      }
+      await sheetsManager.clockOut();
     } else {
-      if (sheetsManager.customer == null) {
-        showQuickPopup(context, 'Unable', 'Customer is not selected');
-      } else if (sheetsManager.billable == null) {
-        showQuickPopup(context, 'Unable', 'Billable is not selected');
-      } else if (sheetsManager.serviceItem == null) {
-        showQuickPopup(context, 'Unable', 'Service Item');
-      } else {
-        sheetsManager.startTime ??= DateTime.now();
-        sheetsManager.clockIn();
-        _saveJobDefaults();
-      }
+      await sheetsManager.clockIn();
     }
+    _saveJobDefaults();
   }
 
   Widget _notesInput() {

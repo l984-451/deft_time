@@ -278,33 +278,45 @@ class SheetsManager extends ChangeNotifier {
   }
 
   Future<void> clockOut() async {
-    if (sheetsManager.currentSheet == null) return;
-    Map<String, dynamic> body = {
-      'data': [
-        {
-          'id': sheetsManager.currentSheet!.id,
-          'end': DateTime.now().toLocal().toIso8601StringWithTimezone(),
-        }
-      ],
-    };
-    TimeSheet tempSheet = sheetsManager.currentSheet!;
-    currentSheet = null;
-    duration.value = 0;
-    durationTimer?.cancel();
-    notifyListeners();
+    String title = 'Cannot Clock Out';
+    if (customer == null) {
+      showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'Customer is not selected.');
+    } else if (billable == null) {
+      showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'Billable is not selected.');
+    } else if (serviceItem == null) {
+      showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'Service Item is not selected.');
+    } else if (notesController.text.isEmpty || sheetsManager.notesController.text.trim() == '') {
+      showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'Notes is empty.');
+    } else if (currentSheet == null) {
+      showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'There is no active timesheet. Please reload the app.');
+    } else {
+      Map<String, dynamic> body = {
+        'data': [
+          {
+            'id': sheetsManager.currentSheet!.id,
+            'end': DateTime.now().toLocal().toIso8601StringWithTimezone(),
+          }
+        ],
+      };
+      TimeSheet tempSheet = sheetsManager.currentSheet!;
+      currentSheet = null;
+      duration.value = 0;
+      durationTimer?.cancel();
+      notifyListeners();
 
-    Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/timesheets');
-    final response = await http.put(
-      requestUri,
-      headers: {
-        "Authorization": "Bearer ${globalUser?.authToken ?? koauthTokenBain}",
-        'Content-Type': 'application/json',
-        // HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}',
-        // HttpHeaders.contentTypeHeader: 'application/json',
-      },
-      body: jsonEncode(body),
-    );
-    _decodeResponse(response.body, true, tempSheet: tempSheet);
+      Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/timesheets');
+      final response = await http.put(
+        requestUri,
+        headers: {
+          "Authorization": "Bearer ${globalUser?.authToken ?? koauthTokenBain}",
+          'Content-Type': 'application/json',
+          // HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}',
+          // HttpHeaders.contentTypeHeader: 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      _decodeResponse(response.body, true, tempSheet: tempSheet);
+    }
   }
 
   Future<void> clockIn() async {
