@@ -352,23 +352,35 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _onSwitchJobPressed() async {
-    showCupertinoModalBottomSheet(
-      context: context,
-      builder: (context) => CustomerModal(
-        prefs: prefs!,
-        callback: (int id) async {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-          await sheetsManager.clockOut();
-          setState(() {
-            sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
-            sheetsManager.startTime = DateTime.now();
-            _loadJobDefaults(sheetsManager.customer);
-          });
-          await sheetsManager.clockIn();
-          setState(() {});
-        },
-      ),
-    );
+    if (sheetsManager.currentSheet != null) {
+      if (sheetsManager.customer == null) {
+        showQuickPopup(context, 'Unable', 'Customer is not selected');
+      } else if (sheetsManager.billable == null) {
+        showQuickPopup(context, 'Unable', 'Billable is not selected');
+      } else if (sheetsManager.serviceItem == null) {
+        showQuickPopup(context, 'Unable', 'Service Item');
+      } else if (sheetsManager.notesController.text.isEmpty) {
+        showQuickPopup(context, 'Unable', 'Notes is empty');
+      } else {
+        showCupertinoModalBottomSheet(
+          context: context,
+          builder: (context) => CustomerModal(
+            prefs: prefs!,
+            callback: (int id) async {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              await sheetsManager.clockOut();
+              setState(() {
+                sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
+                sheetsManager.startTime = DateTime.now();
+                _loadJobDefaults(sheetsManager.customer);
+              });
+              await sheetsManager.clockIn();
+              setState(() {});
+            },
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildDurationCounter() {
