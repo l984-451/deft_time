@@ -312,15 +312,15 @@ class SheetsManager extends ChangeNotifier {
       user_id: globalUser!.id,
       jobcode_id: customer!.id.toString(),
       type: 'regular',
-      start: startTime!.toLocal().toIso8601StringWithTimezone(),
+      start: startTime?.toLocal().toIso8601StringWithTimezone() ?? DateTime.now().toLocal().toIso8601StringWithTimezone(),
       end: '',
       notes: notesController.text,
       customfields: {
-        '336090': billable!,
+        '336090': billable,
         '486514': '',
         '320942': '',
         '1064002': '',
-        '320940': serviceItem!.name,
+        '320940': serviceItem?.name,
       },
       attached_files: [],
     );
@@ -328,15 +328,15 @@ class SheetsManager extends ChangeNotifier {
     currentSheet = TimeSheet(
       user_id: globalUser!.id,
       jobcode_id: customer!.id,
-      start: startTime!.toLocal().toIso8601StringWithTimezone(),
+      start: startTime?.toLocal().toIso8601StringWithTimezone() ?? DateTime.now().toLocal().toIso8601StringWithTimezone(),
       end: '',
       notes: notesController.text,
       customfields: {
-        '336090': billable!,
+        '336090': billable,
         '486514': '',
         '320942': '',
         '1064002': '',
-        '320940': serviceItem!.name,
+        '320940': serviceItem?.name,
       },
     );
 
