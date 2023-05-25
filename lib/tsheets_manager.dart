@@ -242,7 +242,8 @@ class SheetsManager extends ChangeNotifier {
 
   Future<void> updateSheet() async {
     if (sheetsManager.currentSheet == null) return;
-
+    serverDataLoading = true;
+    notifyListeners();
     Map<String, dynamic> body = {
       'data': [
         {
@@ -271,9 +272,9 @@ class SheetsManager extends ChangeNotifier {
       },
       body: jsonEncode(body),
     );
-    // print(response.body);
-    _decodeResponse(response.body, false);
+    serverDataLoading = false;
     notifyListeners();
+    _decodeResponse(response.body, false);
   }
 
   Future<void> clockOut() async {
@@ -385,6 +386,7 @@ class SheetsManager extends ChangeNotifier {
         currentSheet = tempSheet;
       }
     }
+    serverDataLoading = false;
     notifyListeners();
   }
 

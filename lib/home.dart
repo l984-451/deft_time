@@ -30,9 +30,6 @@ class _HomeState extends State<Home> {
   SharedPreferences? prefs;
   final sheetsManager = SheetsManager.instance;
 
-  // Time Clock and logging definitions
-
-  // Time Sheet entries defintions
   bool _loadingTimesheets = false;
 
   @override
@@ -101,19 +98,19 @@ class _HomeState extends State<Home> {
             },
           )
         ],
-        leading: _leadingWidget(sheetsManager.serverDataLoading),
+        leading: _leadingWidget(),
       );
     } else {
       return PlatformAppBar(
         title: const Text('Time Entries'),
-        leading: _leadingWidget(_loadingTimesheets),
+        leading: _leadingWidget(),
       );
     }
   }
 
-  Widget _leadingWidget(bool input) {
+  Widget _leadingWidget() {
     return Consumer<SheetsManager>(builder: (context, _, __) {
-      if (input) {
+      if (sheetsManager.serverDataLoading) {
         return PlatformCircularProgressIndicator();
       } else {
         return const SizedBox.shrink();
@@ -159,6 +156,7 @@ class _HomeState extends State<Home> {
       );
     }
     return CustomScrollView(
+      // physics: const NeverScrollableScrollPhysics(),
       slivers: [
         SliverFillRemaining(
           hasScrollBody: false,
@@ -166,15 +164,15 @@ class _HomeState extends State<Home> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(
-                height: 20,
+                height: 10,
               ),
               _buildDurationCounter(),
               const SizedBox(
-                height: 20,
+                height: 10,
               ),
               SizedBox(
                 height: 50,
-                width: 200,
+                width: 180,
                 child: PlatformElevatedButton(
                   padding: const EdgeInsets.symmetric(
                     vertical: 15,
@@ -260,12 +258,12 @@ class _HomeState extends State<Home> {
       }
       return Padding(
         padding: const EdgeInsets.all(8.0),
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 10,
-          runAlignment: WrapAlignment.center,
-          runSpacing: 10,
-          children: children,
+        child: SizedBox(
+          height: 80,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: children,
+          ),
         ),
       );
     } else {
@@ -287,42 +285,67 @@ class _HomeState extends State<Home> {
         parentNames = '${parentParentJob.name} > ${parentJob.name}';
       }
     }
-    return Container(
-      decoration: BoxDecoration(
-        color: CupertinoColors.systemBlue,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(15),
-      ),
-      width: 200,
-      height: 100,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              job.job?.name ?? 'No Customer',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+        onTap: () {
+          sheetsManager.billable = job.billable;
+          sheetsManager.customer = job.job;
+          sheetsManager.serviceItem = job.serviceItem;
+          sheetsManager.notesController.text = job.notes ?? '';
+          setState(() {});
+          if (sheetsManager.currentSheet != null) {
+            sheetsManager.updateSheet();
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Container(
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemBlue,
+              borderRadius: BorderRadius.circular(15),
             ),
-            Text(
-              parentNames,
-              style: const TextStyle(fontSize: 12, color: Colors.white),
+            width: 150,
+            height: 80,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AutoSizeText(
+                    job.job?.name ?? 'No Customer',
+                    maxLines: 1,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  AutoSizeText(
+                    parentNames,
+                    maxLines: 1,
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                  AutoSizeText(
+                    job.serviceItem?.name ?? 'No Service Item',
+                    maxLines: 1,
+                    // minFontSize: 8,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                  AutoSizeText(
+                    'Billable: ${job.billable ?? 'N/A'}',
+                    maxLines: 1,
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                  AutoSizeText(
+                    'Note: ${job.notes}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                ],
+              ),
             ),
-            Text(
-              job.serviceItem?.name ?? 'No Service Item',
-              style: const TextStyle(fontSize: 12, color: Colors.white),
-            ),
-            Text(
-              job.billable != null ? 'Billable' : '',
-              style: const TextStyle(fontSize: 12, color: Colors.white),
-            ),
-            Text(
-              job.notes ?? 'No Notes',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -583,11 +606,13 @@ class _HomeState extends State<Home> {
                 onPressed: () async {
                   setState(() {
                     _loadingTimesheets = true;
+                    sheetsManager.serverDataLoading = true;
                   });
                   final tempSheets = await getUserTimeSheets();
                   sheetsManager.timesheets.clear();
                   setState(() {
                     sheetsManager.timesheets = tempSheets;
+                    sheetsManager.serverDataLoading = false;
                     _loadingTimesheets = false;
                   });
                 },
@@ -617,11 +642,13 @@ class _HomeState extends State<Home> {
           onRefresh: () async {
             setState(() {
               _loadingTimesheets = true;
+              sheetsManager.serverDataLoading = true;
             });
             final tempSheets = await getUserTimeSheets();
             sheetsManager.timesheets.clear();
             setState(() {
               sheetsManager.timesheets = tempSheets;
+              sheetsManager.serverDataLoading = false;
               _loadingTimesheets = false;
             });
           },
@@ -838,6 +865,9 @@ class _HomeState extends State<Home> {
       defaultList.removeAt(x);
     }
     defaultList.add(defaults);
+    if (defaultList.length > 6) {
+      defaultList.removeRange(6, defaultList.length - 1);
+    }
     prefs!.setString('jobDefaults', convertCodableListToString(defaultList) ?? '');
     prefs!.setInt('jobRecent', defaults.job?.id ?? 0);
     setState(() {});
