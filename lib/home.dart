@@ -325,7 +325,7 @@ class _HomeState extends State<Home> {
                     style: const TextStyle(fontSize: 12, color: Colors.white),
                   ),
                   AutoSizeText(
-                    job.serviceItem?.name ?? 'No Service Item',
+                    job.serviceItem?.name.replaceAll('TS:', '') ?? 'No Service Item',
                     maxLines: 1,
                     // minFontSize: 8,
                     overflow: TextOverflow.ellipsis,
@@ -451,7 +451,7 @@ class _HomeState extends State<Home> {
             style: TextStyle(color: Colors.grey, fontSize: 15),
           ),
           Text(
-            serviceItem?.name ?? 'Unknown',
+            serviceItem?.name.replaceAll('TS:', '') ?? 'Unknown',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const Text(
