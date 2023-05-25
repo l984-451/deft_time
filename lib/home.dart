@@ -259,7 +259,7 @@ class _HomeState extends State<Home> {
       return Padding(
         padding: const EdgeInsets.all(8.0),
         child: SizedBox(
-          height: 80,
+          height: 65,
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: children,
@@ -285,29 +285,57 @@ class _HomeState extends State<Home> {
         parentNames = '${parentParentJob.name} > ${parentJob.name}';
       }
     }
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(15),
-        onTap: () {
-          sheetsManager.billable = job.billable;
-          sheetsManager.customer = job.job;
-          sheetsManager.serviceItem = job.serviceItem;
-          sheetsManager.notesController.text = job.notes ?? '';
-          setState(() {});
-          if (sheetsManager.currentSheet != null) {
-            sheetsManager.updateSheet();
-          }
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Container(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(15),
+          onLongPress: () {
+            showPlatformDialog(
+              context: context,
+              builder: (context) => PlatformAlertDialog(
+                title: const Text('Remove Template'),
+                content: const Text('Do you want to remove this job template?'),
+                actions: [
+                  PlatformDialogAction(
+                    child: const Text(
+                      'Remove',
+                      style: TextStyle(color: CupertinoColors.destructiveRed),
+                    ),
+                    onPressed: () {
+                      String defaultsString = prefs!.getString('jobDefaults') ?? '';
+                      List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
+                      defaultList.removeWhere((j) => j.job?.id == job.job?.id);
+                      prefs!.setString('jobDefaults', convertCodableListToString(defaultList) ?? '');
+                      setState(() {});
+                      Navigator.pop(context);
+                    },
+                  ),
+                  PlatformDialogAction(
+                    child: const Text('Cancel'),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            );
+          },
+          onTap: () {
+            sheetsManager.billable = job.billable;
+            sheetsManager.customer = job.job;
+            sheetsManager.serviceItem = job.serviceItem;
+            sheetsManager.notesController.text = job.notes ?? '';
+            setState(() {});
+            if (sheetsManager.currentSheet != null) {
+              sheetsManager.updateSheet();
+            }
+          },
+          child: Ink(
             decoration: BoxDecoration(
               color: CupertinoColors.systemBlue,
               borderRadius: BorderRadius.circular(15),
             ),
             width: 150,
-            height: 80,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
               child: Column(
@@ -319,11 +347,11 @@ class _HomeState extends State<Home> {
                     maxLines: 1,
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
-                  AutoSizeText(
-                    parentNames,
-                    maxLines: 1,
-                    style: const TextStyle(fontSize: 12, color: Colors.white),
-                  ),
+                  // AutoSizeText(
+                  //   parentNames,
+                  //   maxLines: 1,
+                  //   style: const TextStyle(fontSize: 12, color: Colors.white),
+                  // ),
                   AutoSizeText(
                     job.serviceItem?.name.replaceAll('TS:', '') ?? 'No Service Item',
                     maxLines: 1,
@@ -354,13 +382,13 @@ class _HomeState extends State<Home> {
   Future<void> _onSwitchJobPressed() async {
     if (sheetsManager.currentSheet != null) {
       if (sheetsManager.customer == null) {
-        showQuickPopup(context, 'Unable', 'Customer is not selected');
+        showQuickPopup(context, 'Cannot Switch Job', 'Customer is not selected.');
       } else if (sheetsManager.billable == null) {
-        showQuickPopup(context, 'Unable', 'Billable is not selected');
+        showQuickPopup(context, 'Cannot Switch Job', 'Billable is not selected.');
       } else if (sheetsManager.serviceItem == null) {
-        showQuickPopup(context, 'Unable', 'Service Item');
+        showQuickPopup(context, 'Cannot Switch Job', 'Service Item.');
       } else if (sheetsManager.notesController.text.isEmpty || sheetsManager.notesController.text.trim() == '') {
-        showQuickPopup(context, 'Unable', 'Notes is empty');
+        showQuickPopup(context, 'Cannot Switch Job', 'Notes is empty.');
       } else {
         showCupertinoModalBottomSheet(
           context: context,
@@ -370,6 +398,7 @@ class _HomeState extends State<Home> {
               Navigator.of(context).popUntil((route) => route.isFirst);
               await sheetsManager.clockOut();
               setState(() {
+                sheetsManager.clearTimesheet();
                 sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
                 sheetsManager.startTime = DateTime.now();
                 _loadJobDefaults(sheetsManager.customer);
@@ -839,6 +868,9 @@ class _HomeState extends State<Home> {
     if (x != null) {
       sheetsManager.billable = x.billable;
       sheetsManager.serviceItem = x.serviceItem;
+      if (x.notes != null) {
+        sheetsManager.notesController.text = x.notes!;
+      }
     }
   }
 
@@ -855,10 +887,12 @@ class _HomeState extends State<Home> {
     int x = defaultList.indexWhere((element) => element.job?.id == defaults.job?.id);
     if (x != -1) {
       defaultList.removeAt(x);
+      defaultList.insert(x, defaults);
+    } else {
+      defaultList.add(defaults);
     }
-    defaultList.add(defaults);
     if (defaultList.length > 6) {
-      defaultList.removeRange(6, defaultList.length - 1);
+      defaultList.removeRange(0, (defaultList.length - 6));
     }
     prefs!.setString('jobDefaults', convertCodableListToString(defaultList) ?? '');
     prefs!.setInt('jobRecent', defaults.job?.id ?? 0);

@@ -579,7 +579,7 @@ class SheetsManager extends ChangeNotifier {
     await loadServerData();
   }
 
-  loadLocalData() {
+  void loadLocalData() {
     _getUserLocal();
     _getProjectsLocal();
     _getAllJobCodesLocal();
@@ -605,6 +605,14 @@ class SheetsManager extends ChangeNotifier {
     _afterCurrentSheetChecked();
     serverDataLoading = false;
     notifyListeners();
+  }
+
+  clearTimesheet() {
+    serviceItem = null;
+    billable = null;
+    startTime = null;
+    customer = null;
+    notesController.clear();
   }
 }
 
