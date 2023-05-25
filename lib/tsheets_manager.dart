@@ -86,7 +86,6 @@ Future<TimeSheet?> getCurrentStatus() async {
   final Map<String, dynamic> body = json.decode(response.body);
   final Map<String, dynamic> timeSheetMap = body['results']['timesheets'];
   if (timeSheetMap.values.isNotEmpty) {
-    // inspect(timeSheetMap.values.first);
     return TimeSheet.fromJson(timeSheetMap.values.first);
   } else {
     return null;
@@ -514,8 +513,6 @@ class SheetsManager extends ChangeNotifier {
 
   void _afterCurrentSheetChecked() {
     if (currentSheet != null) {
-      // print('customer: ${currentSheet!.jobcode_id}');
-      // inspect(allJobCodes);
       customer = allJobCodes.firstWhereOrNull((j) => j.id == currentSheet!.jobcode_id!);
       startTime = DateTime.parse(sheetsManager.currentSheet!.start!).toLocal();
       billable = currentSheet!.billable;
@@ -553,6 +550,13 @@ class SheetsManager extends ChangeNotifier {
     if (user != null) {
       globalUser = convertStringToCodableObject(user, User.fromJson);
     }
+  }
+
+  Future<void> loadAllData() async {
+    serverDataLoading = true;
+    notifyListeners();
+    loadLocalData();
+    await loadServerData();
   }
 
   loadLocalData() {

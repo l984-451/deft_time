@@ -42,7 +42,6 @@ class _CustomerModalState extends State<CustomerModal> {
     }
     for (int i = 0; i < min(defaultList.length, 5); i++) {
       JobDefaults x = defaultList[i];
-      inspect(x);
       if (x.job != null) {
         _defaultJobCounter++;
         localJobs.insert(i, x.job!);

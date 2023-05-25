@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_platform_widgets/flutter_platform_widgets.dart';
 import 'package:provider/provider.dart';
@@ -24,6 +25,8 @@ class MainApp extends StatelessWidget {
       child: PlatformProvider(
         settings: PlatformSettingsData(iosUseZeroPaddingForAppbarPlatformIcon: true),
         builder: (context) => PlatformApp(
+          localizationsDelegates: const {DefaultWidgetsLocalizations.delegate, DefaultMaterialLocalizations.delegate, DefaultCupertinoLocalizations.delegate},
+          color: CupertinoColors.systemBackground,
           navigatorKey: NavigationService.navigatorKey,
           cupertino: (context, platform) => CupertinoAppData(),
           home: const Home(),

@@ -92,18 +92,19 @@ class _HomeState extends State<Home> {
             },
           )
         ],
-        leading: _leadingWidget(),
+        leading: _leadingWidget(sheetsManager.serverDataLoading),
       );
     } else {
       return PlatformAppBar(
         title: const Text('Time Entries'),
+        leading: _leadingWidget(_loadingTimesheets),
       );
     }
   }
 
-  Widget _leadingWidget() {
+  Widget _leadingWidget(bool input) {
     return Consumer<SheetsManager>(builder: (context, _, __) {
-      if (sheetsManager.serverDataLoading) {
+      if (input) {
         return PlatformCircularProgressIndicator();
       } else {
         return const SizedBox.shrink();
@@ -264,10 +265,17 @@ class _HomeState extends State<Home> {
     return ValueListenableBuilder(
       valueListenable: sheetsManager.duration,
       builder: (context, value, _) {
-        return Text(
-          _formatDuration(value, showSeconds: true),
-          style: const TextStyle(fontSize: 30, fontFeatures: [FontFeature.tabularFigures()]),
-        );
+        if (value > 0) {
+          return Text(
+            _formatDuration(value, showSeconds: true),
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, fontFeatures: [FontFeature.tabularFigures()]),
+          );
+        } else {
+          return const Text(
+            'Clocked Out',
+            style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, fontFeatures: [FontFeature.tabularFigures()]),
+          );
+        }
       },
     );
   }
@@ -472,55 +480,70 @@ class _HomeState extends State<Home> {
       return const Text('No user chosen. Navigate to "Users" page and choose a user.');
     }
     if (sheetsManager.timesheets.isEmpty) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Text('No Timesheets available for this week.'),
-          ),
-          SizedBox(
-            width: 250,
-            child: PlatformElevatedButton(
-              padding: const EdgeInsets.symmetric(horizontal: 0),
-              onPressed: () async {
-                setState(() {
-                  _loadingTimesheets = true;
-                });
-                final tempSheets = await getUserTimeSheets();
-                sheetsManager.timesheets.clear();
-                setState(() {
-                  sheetsManager.timesheets = tempSheets;
-                  _loadingTimesheets = false;
-                });
-              },
-              child: Stack(
-                children: [
-                  const Align(alignment: Alignment.center, child: Text('Refresh Timesheets')),
-                  _loadingTimesheets
-                      ? Positioned(
-                          right: 10,
-                          child: PlatformCircularProgressIndicator(
-                            cupertino: (context, platform) => CupertinoProgressIndicatorData(color: Colors.white),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ],
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Text('No Timesheets available for this week.'),
+            ),
+            SizedBox(
+              width: 250,
+              child: PlatformElevatedButton(
+                padding: const EdgeInsets.symmetric(horizontal: 0),
+                onPressed: () async {
+                  setState(() {
+                    _loadingTimesheets = true;
+                  });
+                  final tempSheets = await getUserTimeSheets();
+                  sheetsManager.timesheets.clear();
+                  setState(() {
+                    sheetsManager.timesheets = tempSheets;
+                    _loadingTimesheets = false;
+                  });
+                },
+                child: Stack(
+                  children: [
+                    const Align(alignment: Alignment.center, child: Text('Refresh Timesheets')),
+                    _loadingTimesheets
+                        ? Positioned(
+                            right: 10,
+                            child: PlatformCircularProgressIndicator(
+                              cupertino: (context, platform) => CupertinoProgressIndicatorData(color: Colors.white),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     } else {
       return MediaQuery.removePadding(
         removeTop: true,
         context: context,
-        child: GroupedListView(
-          elements: sheetsManager.timesheets,
-          groupBy: (TimeSheet e) => e.date!,
-          groupSeparatorBuilder: (String value) => _timesheetSeparator(value),
-          indexedItemBuilder: (context, element, index) => _timesheetTile(element),
-          order: GroupedListOrder.DESC,
+        child: RefreshIndicator.adaptive(
+          onRefresh: () async {
+            setState(() {
+              _loadingTimesheets = true;
+            });
+            final tempSheets = await getUserTimeSheets();
+            sheetsManager.timesheets.clear();
+            setState(() {
+              sheetsManager.timesheets = tempSheets;
+              _loadingTimesheets = false;
+            });
+          },
+          child: GroupedListView(
+            elements: sheetsManager.timesheets,
+            groupBy: (TimeSheet e) => e.date!,
+            groupSeparatorBuilder: (String value) => _timesheetSeparator(value),
+            indexedItemBuilder: (context, element, index) => _timesheetTile(element),
+            order: GroupedListOrder.DESC,
+          ),
         ),
       );
     }
@@ -528,12 +551,12 @@ class _HomeState extends State<Home> {
 
   Widget _timesheetSeparator(String date) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 30, 10, 10),
+      padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
       child: Container(
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), color: Colors.grey.shade200),
         height: 50,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 15),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -541,6 +564,7 @@ class _HomeState extends State<Home> {
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       DateFormat('EEEE').format(DateTime.parse(date)),
@@ -557,6 +581,7 @@ class _HomeState extends State<Home> {
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     ValueListenableBuilder(
                       valueListenable: sheetsManager.duration,
@@ -606,31 +631,35 @@ class _HomeState extends State<Home> {
       }
     }
 
-    return Column(
-      children: [
-        PlatformListTile(
-          trailing: Text(
-            _formatDuration(sheet.duration!),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          PlatformListTile(
+            trailing: Text(
+              _formatDuration(sheet.duration!),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            title: AutoSizeText(
+              job?.name ?? 'N/A',
+              maxLines: 1,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            subtitle: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Text(
+                //   parentNames,
+                // ),
+                Text('BILLABLE: ${sheet.billable}'),
+                Text('NOTES: ${sheet.notes ?? ''}'),
+              ],
+            ),
           ),
-          title: AutoSizeText(
-            job?.name ?? 'N/A',
-            maxLines: 1,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          subtitle: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                parentNames,
-              ),
-              Text('Billable: ${sheet.billable}'),
-            ],
-          ),
-        ),
-        const Divider(),
-      ],
+          const Divider(),
+        ],
+      ),
     );
   }
 
@@ -678,7 +707,7 @@ class _HomeState extends State<Home> {
             Navigator.pop(context);
             await sheetsManager.getCurrentTimesheet();
             await sheetsManager.getTimesheets();
-            await sheetsManager.loadServerData();
+            await sheetsManager.loadAllData();
           },
         ),
       ],
@@ -729,7 +758,7 @@ String _formatDuration(int seconds, {bool showSeconds = false}) {
     if (hours > 0) {
       return '${hours.toString()}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
     } else if (minutes > 0) {
-      return '${minutes.toString().padLeft(2, '0')} min:${remainingSeconds.toString().padLeft(2, '0')} sec';
+      return '${minutes.toString()}:${remainingSeconds.toString().padLeft(2, '0')}';
     } else {
       return '$remainingSeconds sec';
     }
