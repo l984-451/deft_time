@@ -477,7 +477,14 @@ class _HomeState extends State<Home> {
 
   Widget _entriesView() {
     if (globalUser == null) {
-      return const Text('No user chosen. Navigate to "Users" page and choose a user.');
+      return const Center(
+          child: Padding(
+        padding: EdgeInsets.all(30.0),
+        child: Text(
+          'No user chosen. Navigate to "Users" page and choose a user.',
+          textAlign: TextAlign.center,
+        ),
+      ));
     }
     if (sheetsManager.timesheets.isEmpty) {
       return Center(
