@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:adaptive_action_sheet/adaptive_action_sheet.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:codable/codable.dart';
 import 'package:collection/collection.dart';
@@ -200,12 +201,35 @@ class _HomeState extends State<Home> {
                   },
                 ),
               ),
-              _buildQuickItemsRow(),
-              _customerCell(),
               const SizedBox(
-                height: 20,
+                height: 10,
+              ),
+              const Divider(
+                height: 4,
+                thickness: 1,
+              ),
+              _buildQuickItemsRow(),
+              const Divider(
+                height: 4,
+                thickness: 1,
+              ),
+              const SizedBox(
+                height: 10,
+              ),
+              _customerCell(),
+              const Divider(
+                height: 10,
+                thickness: 1,
+                endIndent: 20,
+                indent: 20,
               ),
               _billableCell(),
+              const Divider(
+                height: 10,
+                thickness: 1,
+                endIndent: 20,
+                indent: 20,
+              ),
               _serviceItemCell(sheetsManager.serviceItem),
               const Spacer(),
               _notesInput(),
@@ -248,6 +272,36 @@ class _HomeState extends State<Home> {
     );
   }
 
+  void _removeDefaultPopup(JobDefaults job) {
+    showPlatformDialog(
+      context: context,
+      builder: (context) => PlatformAlertDialog(
+        title: const Text('Remove Template'),
+        content: const Text('Are you sure you want to remove this job default?'),
+        actions: [
+          PlatformDialogAction(
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: CupertinoColors.destructiveRed),
+            ),
+            onPressed: () {
+              String defaultsString = prefs!.getString('jobDefaults') ?? '';
+              List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
+              defaultList.removeWhere((j) => j.job?.id == job.job?.id);
+              prefs!.setString('jobDefaults', convertCodableListToString(defaultList) ?? '');
+              setState(() {});
+              Navigator.pop(context);
+            },
+          ),
+          PlatformDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickItemsRow() {
     String defaultsString = prefs!.getString('jobDefaults') ?? '';
     List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
@@ -257,7 +311,7 @@ class _HomeState extends State<Home> {
         children.add(_buildQuickItemCell(job));
       }
       return Padding(
-        padding: const EdgeInsets.all(8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
         child: SizedBox(
           height: 65,
           child: ListView(
@@ -272,19 +326,19 @@ class _HomeState extends State<Home> {
   }
 
   Widget _buildQuickItemCell(JobDefaults job) {
-    String parentNames = '';
+    // String parentNames = '';
 
-    JobCodes? parentJob = _getParentJob(job.job?.id);
-    JobCodes? parentParentJob;
+    // JobCodes? parentJob = _getParentJob(job.job?.id);
+    // JobCodes? parentParentJob;
 
-    if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
+    // if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
 
-    if (parentJob != null) {
-      parentNames = parentJob.name;
-      if (parentParentJob != null) {
-        parentNames = '${parentParentJob.name} > ${parentJob.name}';
-      }
-    }
+    // if (parentJob != null) {
+    //   parentNames = parentJob.name;
+    //   if (parentParentJob != null) {
+    //     parentNames = '${parentParentJob.name} > ${parentJob.name}';
+    //   }
+    // }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Material(
@@ -292,32 +346,44 @@ class _HomeState extends State<Home> {
         child: InkWell(
           borderRadius: BorderRadius.circular(15),
           onLongPress: () {
-            showPlatformDialog(
+            showAdaptiveActionSheet(
               context: context,
-              builder: (context) => PlatformAlertDialog(
-                title: const Text('Remove Template'),
-                content: const Text('Do you want to remove this job template?'),
-                actions: [
-                  PlatformDialogAction(
-                    child: const Text(
-                      'Remove',
-                      style: TextStyle(color: CupertinoColors.destructiveRed),
-                    ),
-                    onPressed: () {
-                      String defaultsString = prefs!.getString('jobDefaults') ?? '';
-                      List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
-                      defaultList.removeWhere((j) => j.job?.id == job.job?.id);
-                      prefs!.setString('jobDefaults', convertCodableListToString(defaultList) ?? '');
-                      setState(() {});
-                      Navigator.pop(context);
-                    },
+              title: const Text('Default Options'),
+              actions: [
+                BottomSheetAction(
+                  leading: Icon(PlatformIcons(context).clockSolid),
+                  title: const Text(
+                    'Clock In',
                   ),
-                  PlatformDialogAction(
-                    child: const Text('Cancel'),
-                    onPressed: () => Navigator.pop(context),
+                  onPressed: (_) async {
+                    Navigator.pop(context);
+                    sheetsManager.serverDataLoading;
+                    if (sheetsManager.currentSheet != null) {
+                      if (!await sheetsManager.clockOut()) {
+                        return;
+                      }
+                    }
+                    sheetsManager.billable = job.billable;
+                    sheetsManager.customer = job.job;
+                    sheetsManager.serviceItem = job.serviceItem;
+                    sheetsManager.notesController.text = job.notes ?? '';
+                    sheetsManager.startTime = DateTime.now();
+                    await sheetsManager.clockIn();
+                  },
+                ),
+                BottomSheetAction(
+                  leading: Icon(PlatformIcons(context).deleteSolid),
+                  title: const Text(
+                    'Remove Default',
+                    style: TextStyle(color: CupertinoColors.destructiveRed),
                   ),
-                ],
-              ),
+                  onPressed: (_) {
+                    Navigator.pop(context);
+                    _removeDefaultPopup(job);
+                  },
+                ),
+              ],
+              cancelAction: CancelAction(title: const Text('Cancel')),
             );
           },
           onTap: () {
@@ -432,7 +498,9 @@ class _HomeState extends State<Home> {
 
   Future<void> _onClockInOut() async {
     if (sheetsManager.currentSheet != null) {
-      await sheetsManager.clockOut();
+      if (!await sheetsManager.clockOut()) {
+        return;
+      }
     } else {
       await sheetsManager.clockIn();
     }

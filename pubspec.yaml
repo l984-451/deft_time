@@ -1,12 +1,13 @@
 name: time
 description: A simple app to interface with TSheets Time.
 publish_to: "none"
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: ">=3.0.0"
 
 dependencies:
+  adaptive_action_sheet: ^2.0.2
   after_layout: ^1.2.0
   auto_size_text: ^3.0.0
   codable:

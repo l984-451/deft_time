@@ -277,18 +277,23 @@ class SheetsManager extends ChangeNotifier {
     _decodeResponse(response.body, false);
   }
 
-  Future<void> clockOut() async {
+  Future<bool> clockOut() async {
     String title = 'Cannot Clock Out';
     if (customer == null) {
       showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'Customer is not selected.');
+      return false;
     } else if (billable == null) {
       showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'Billable is not selected.');
+      return false;
     } else if (serviceItem == null) {
       showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'Service Item is not selected.');
+      return false;
     } else if (notesController.text.isEmpty || sheetsManager.notesController.text.trim() == '') {
       showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'Notes is empty.');
+      return false;
     } else if (currentSheet == null) {
       showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'There is no active timesheet. Please reload the app.');
+      return false;
     } else {
       Map<String, dynamic> body = {
         'data': [
@@ -315,11 +320,11 @@ class SheetsManager extends ChangeNotifier {
         },
         body: jsonEncode(body),
       );
-      _decodeResponse(response.body, true, tempSheet: tempSheet);
+      return _decodeResponse(response.body, true, tempSheet: tempSheet);
     }
   }
 
-  Future<void> clockIn() async {
+  Future<bool> clockIn() async {
     TimeEntry entry = TimeEntry(
       user_id: globalUser!.id,
       jobcode_id: customer!.id.toString(),
@@ -369,13 +374,16 @@ class SheetsManager extends ChangeNotifier {
       },
       body: jsonEncode(body),
     );
-    _decodeResponse(response.body, false);
-    await getCurrentTimesheet();
-    _afterCurrentSheetChecked();
-    notifyListeners();
+    bool loggedIn = _decodeResponse(response.body, false);
+    if (loggedIn) {
+      await getCurrentTimesheet();
+      _afterCurrentSheetChecked();
+      notifyListeners();
+    }
+    return loggedIn;
   }
 
-  void _decodeResponse(String body, bool isClockOut, {TimeSheet? tempSheet}) {
+  bool _decodeResponse(String body, bool isClockOut, {TimeSheet? tempSheet}) {
     int statusCode = 0;
     String statusMessage = '';
     final jsonBody = jsonDecode(body);
@@ -387,19 +395,22 @@ class SheetsManager extends ChangeNotifier {
       statusMessage += '\n${timesheet['_status_extra']}';
       if (statusCode != 200) {
         showQuickPopup(NavigationService.navigatorKey.currentContext!, 'Timesheet Error', statusMessage);
-        break;
+        return false;
       }
     }
     if (isClockOut) {
       if (statusCode == 200) {
         currentSheet = null;
         _afterCurrentSheetChecked();
+        return true;
       } else {
         currentSheet = tempSheet;
+        return false;
       }
     }
     serverDataLoading = false;
     notifyListeners();
+    return true;
   }
 
   void updateNoteController(String newVal) {

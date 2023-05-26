@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:codable/codable.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/cupertino.dart';
@@ -22,6 +23,7 @@ class CustomerModal extends StatefulWidget {
 class _CustomerModalState extends State<CustomerModal> {
   final sheetsManager = SheetsManager.instance;
   List<JobCodes> localJobs = [];
+  List<JobDefaults> defaultList = [];
   int _defaultJobCounter = 0;
   @override
   void initState() {
@@ -29,7 +31,7 @@ class _CustomerModalState extends State<CustomerModal> {
     localJobs = sheetsManager.parentJobs;
 
     String defaultsString = widget.prefs.getString('jobDefaults') ?? '';
-    List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
+    defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
     int? recentJob = widget.prefs.getInt('jobRecent');
     JobDefaults? x;
     if (recentJob != null) {
@@ -52,19 +54,11 @@ class _CustomerModalState extends State<CustomerModal> {
   Widget build(BuildContext context) {
     return Container(
       color: CupertinoColors.systemBackground,
-      child: ListView.builder(
+      child: ListView.separated(
+        separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
-          if (index < _defaultJobCounter - 1) {
+          if (index <= _defaultJobCounter - 1) {
             return _buildListTile(context, localJobs[index], true);
-          } else if (index == _defaultJobCounter - 1) {
-            return Column(
-              children: [
-                _buildListTile(context, localJobs[index], true),
-                const Divider(
-                  thickness: 4,
-                )
-              ],
-            );
           } else {
             return _buildListTile(context, localJobs[index], false);
           }
@@ -84,12 +78,72 @@ class _CustomerModalState extends State<CustomerModal> {
     }
   }
 
+  Widget? _subTitle(JobCodes item) {
+    JobDefaults? job = defaultList.firstWhereOrNull((element) => element.job?.id == item.id);
+    if (job == null) return null;
+    String parentNames = '';
+
+    JobCodes? parentJob = _getParentJob(job.job?.id);
+    JobCodes? parentParentJob;
+
+    if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
+
+    if (parentJob != null) {
+      parentNames = parentJob.name;
+      if (parentParentJob != null) {
+        parentNames = '${parentParentJob.name} > ${parentJob.name}';
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AutoSizeText(
+          parentNames,
+          maxLines: 1,
+          // minFontSize: 8,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12),
+        ),
+        AutoSizeText(
+          job.serviceItem?.name.replaceAll('TS:', '') ?? 'No Service Item',
+          maxLines: 1,
+          // minFontSize: 8,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12),
+        ),
+        AutoSizeText(
+          'Billable: ${job.billable ?? 'N/A'}',
+          maxLines: 1,
+          style: const TextStyle(fontSize: 12),
+        ),
+        AutoSizeText(
+          'Note: ${job.notes}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  JobCodes? _getJob(int jobcodeId) {
+    return sheetsManager.allJobCodes.firstWhereOrNull((e) => e.id == jobcodeId);
+  }
+
+  JobCodes? _getParentJob(int? jobcodeId) {
+    if (jobcodeId == null) return null;
+    JobCodes? job = sheetsManager.allJobCodes.firstWhereOrNull((e) => e.id == jobcodeId);
+    JobCodes? parentJob = sheetsManager.allJobCodes.firstWhereOrNull((e) => e.id == job?.parent_id);
+    return parentJob;
+  }
+
   Widget _buildListTile(BuildContext context, JobCodes item, bool isDefault) {
     return PlatformListTile(
       title: Text(
         item.name,
         style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
       ),
+      subtitle: _subTitle(item),
       trailing: _trailingWidget(item, isDefault),
       onTap: () {
         if (isDefault) {
@@ -113,7 +167,8 @@ class CustomerDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: CupertinoColors.systemBackground,
-      child: ListView.builder(
+      child: ListView.separated(
+        separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
           return _buildListTile(context, jobCode.subJobs[index]);
         },
@@ -161,7 +216,8 @@ class ProjectPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: CupertinoColors.systemBackground,
-      child: ListView.builder(
+      child: ListView.separated(
+        separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
           return _buildListTile(context, projects[index]);
         },
