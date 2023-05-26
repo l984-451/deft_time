@@ -213,9 +213,7 @@ class _HomeState extends State<Home> {
                 height: 4,
                 thickness: 1,
               ),
-              const SizedBox(
-                height: 10,
-              ),
+              const Spacer(),
               _customerCell(),
               const Divider(
                 height: 10,
@@ -357,7 +355,9 @@ class _HomeState extends State<Home> {
                   ),
                   onPressed: (_) async {
                     Navigator.pop(context);
-                    sheetsManager.serverDataLoading;
+                    setState(() {
+                      sheetsManager.serverDataLoading;
+                    });
                     if (sheetsManager.currentSheet != null) {
                       if (!await sheetsManager.clockOut()) {
                         return;
@@ -517,7 +517,7 @@ class _HomeState extends State<Home> {
             style: TextStyle(fontSize: 15),
           ),
           SizedBox(
-            height: 150,
+            height: 100,
             child: PlatformTextField(
               maxLines: 5,
               keyboardType: TextInputType.text,
