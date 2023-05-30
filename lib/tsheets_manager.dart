@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:io';
 import 'dart:convert';
 import 'package:codable/codable.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:time/app_constants.dart';
@@ -208,6 +210,22 @@ class SheetsManager extends ChangeNotifier {
   ValueNotifier<int> duration = ValueNotifier(0);
   Timer? durationTimer;
 
+  DateTime? get lastTimesheetEnd {
+    if (timesheets.isNotEmpty) {
+      return DateTime.parse(timesheets.last.end!).toLocal();
+    } else {
+      return null;
+    }
+  }
+
+  TimeSheet? get lastTimesheet {
+    if (timesheets.isNotEmpty) {
+      return timesheets.last;
+    } else {
+      return null;
+    }
+  }
+
   List<CustomFieldItemFilter> customFieldItemFilters = [];
   List<CustomFields> customFields = [];
   List<Project> projects = [];
@@ -244,6 +262,40 @@ class SheetsManager extends ChangeNotifier {
     if (sheetsManager.currentSheet == null) return;
     serverDataLoading = true;
     notifyListeners();
+    if (startTime != null && lastTimesheetEnd != null && startTime!.isBefore(lastTimesheetEnd!)) {
+      print('here we are');
+      Map<String, dynamic> body = {
+        'data': [
+          {
+            'id': lastTimesheet!.id,
+            'end': startTime!.subtract(const Duration(minutes: 1)).toIso8601StringWithTimezone(),
+          }
+        ],
+      };
+      Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/timesheets');
+      final response = await http.put(
+        requestUri,
+        headers: {
+          "Authorization": "Bearer ${globalUser?.authToken ?? koauthTokenBain}",
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (_decodeResponse(response.body, false)) {
+        print('updated old sheet. now update new one');
+        await _updateCurrentSheet();
+        await getTimesheets();
+      } else {
+        serverDataLoading = false;
+        notifyListeners();
+      }
+    } else {
+      _updateCurrentSheet();
+    }
+  }
+
+  Future<void> _updateCurrentSheet() async {
     Map<String, dynamic> body = {
       'data': [
         {
@@ -277,8 +329,45 @@ class SheetsManager extends ChangeNotifier {
     _decodeResponse(response.body, false);
   }
 
-  Future<bool> clockOut() async {
+  Future<void> updateOldSheet(TimeSheet sheet) async {
+    serverDataLoading = true;
+    notifyListeners();
+    Map<String, dynamic> body = {
+      'data': [
+        {
+          'id': sheet.id,
+          'jobcode_id': sheet.jobcode_id?.toString(),
+          'start': sheet.start,
+          'notes': sheet.notes,
+          'customfields': {
+            '336090': sheet.billable,
+            '486514': '',
+            '320942': '',
+            '1064002': '',
+            '320940': sheet.customfields?['320940'],
+          },
+        }
+      ],
+    };
+    Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/timesheets');
+    final response = await http.put(
+      requestUri,
+      headers: {
+        "Authorization": "Bearer ${globalUser?.authToken ?? koauthTokenBain}",
+        'Content-Type': 'application/json',
+        // HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}',
+        // HttpHeaders.contentTypeHeader: 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+    serverDataLoading = false;
+    notifyListeners();
+    _decodeResponse(response.body, false);
+  }
+
+  Future<bool> clockOut({bool retry = false}) async {
     String title = 'Cannot Clock Out';
+
     if (customer == null) {
       showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'Customer is not selected.');
       return false;
@@ -295,18 +384,20 @@ class SheetsManager extends ChangeNotifier {
       showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'There is no active timesheet. Please reload the app.');
       return false;
     } else {
+      print('new start time: ${DateTime.now().subtract(const Duration(hours: 5)).toLocal().toIso8601StringWithTimezone()}');
       Map<String, dynamic> body = {
         'data': [
           {
+            'start': DateTime.now().subtract(const Duration(hours: 5)).toLocal().toIso8601StringWithTimezone(),
             'id': sheetsManager.currentSheet!.id,
             'end': DateTime.now().toLocal().toIso8601StringWithTimezone(),
           }
         ],
       };
       TimeSheet tempSheet = sheetsManager.currentSheet!;
-      currentSheet = null;
-      duration.value = 0;
-      durationTimer?.cancel();
+      // currentSheet = null;
+      // duration.value = 0;
+      // durationTimer?.cancel();
       notifyListeners();
 
       Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/timesheets');
@@ -411,6 +502,18 @@ class SheetsManager extends ChangeNotifier {
     serverDataLoading = false;
     notifyListeners();
     return true;
+  }
+
+  Future<bool> _updateCurrentSheetEndAndCreateNewSheet(TimeSheet clockOutSheet) async {
+    final clockInSheet = currentSheet!;
+    clockOutSheet.end = startTime!.subtract(const Duration(minutes: 1)).toLocal().toIso8601StringWithTimezone();
+    currentSheet = clockOutSheet;
+    if (await clockOut(retry: true)) {
+      print('successfully clocked out. now clock in.');
+    } else {
+      print('didnt clock out');
+    }
+    return false;
   }
 
   void updateNoteController(String newVal) {
@@ -573,6 +676,7 @@ class SheetsManager extends ChangeNotifier {
         notesController.text = '';
       }
     }
+    print('last time sheet end: $lastTimesheetEnd');
     notifyListeners();
   }
 

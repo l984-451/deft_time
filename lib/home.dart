@@ -5,6 +5,7 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:codable/codable.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_platform_widgets/flutter_platform_widgets.dart';
 import 'package:grouped_list/grouped_list.dart';
@@ -81,16 +82,19 @@ class _HomeState extends State<Home> {
   PlatformAppBar _buildAppBar(int index) {
     if (index == 0) {
       return PlatformAppBar(
-        title: PlatformTextButton(
-          padding: EdgeInsets.zero,
-          child: const Text('Time Clock'),
-          onPressed: () => Navigator.push(
-              context,
-              platformPageRoute(
-                context: context,
-                builder: (context) => const DebugMenu(),
-              )),
-        ),
+        title: kDebugMode
+            ? PlatformTextButton(
+                padding: EdgeInsets.zero,
+                child: const Text('Time Clock'),
+                onPressed: () => Navigator.push(
+                  context,
+                  platformPageRoute(
+                    context: context,
+                    builder: (context) => const DebugMenu(),
+                  ),
+                ),
+              )
+            : const Text('Time Clock'),
         trailingActions: [
           PlatformIconButton(
             icon: Icon(PlatformIcons(context).accountCircleSolid),
@@ -156,117 +160,132 @@ class _HomeState extends State<Home> {
         ),
       );
     }
-    return CustomScrollView(
-      // physics: const NeverScrollableScrollPhysics(),
-      slivers: [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(
-                height: 10,
-              ),
-              _buildDurationCounter(),
-              const SizedBox(
-                height: 10,
-              ),
-              SizedBox(
-                height: 50,
-                width: 180,
-                child: PlatformElevatedButton(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 15,
-                  ),
-                  child: Text('Start Time: ${DateFormat('jm').format(sheetsManager.startTime ?? DateTime.now())}'),
-                  onPressed: () {
-                    showPlatformDatePicker(
-                        context: context,
-                        initialDate: sheetsManager.startTime ?? DateTime.now(),
-                        firstDate: DateTime.now().subtract(const Duration(days: 3)),
-                        lastDate: DateTime.now(),
-                        cupertino: (context, platform) => CupertinoDatePickerData(
-                              mode: CupertinoDatePickerMode.dateAndTime,
-                            )).then(
-                      (value) => setState(
-                        () {
+    return RefreshIndicator.adaptive(
+      onRefresh: () async {
+        setState(() {
+          _loadingTimesheets = true;
+          sheetsManager.serverDataLoading = true;
+        });
+        await sheetsManager.getCurrentTimesheet();
+        final tempSheets = await getUserTimeSheets();
+        sheetsManager.timesheets.clear();
+        setState(() {
+          sheetsManager.timesheets = tempSheets;
+          sheetsManager.serverDataLoading = false;
+          _loadingTimesheets = false;
+        });
+      },
+      child: CustomScrollView(
+        // physics: const NeverScrollableScrollPhysics(),
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  height: 10,
+                ),
+                _buildDurationCounter(),
+                const SizedBox(
+                  height: 10,
+                ),
+                SizedBox(
+                  height: 50,
+                  width: 180,
+                  child: PlatformElevatedButton(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 15,
+                    ),
+                    child: Text('Start Time: ${DateFormat('jm').format(sheetsManager.startTime ?? DateTime.now())}'),
+                    onPressed: () {
+                      showPlatformDatePicker(
+                          context: context,
+                          initialDate: sheetsManager.startTime ?? DateTime.now(),
+                          firstDate: DateTime.now().subtract(const Duration(days: 3)),
+                          lastDate: DateTime.now(),
+                          cupertino: (context, platform) => CupertinoDatePickerData(
+                                mode: CupertinoDatePickerMode.dateAndTime,
+                              )).then(
+                        (value) async {
                           if (value != null) {
                             sheetsManager.startTime = value;
-                            sheetsManager.updateSheet();
+                            await sheetsManager.updateSheet();
                             sheetsManager.createTimer();
+                            setState(() {});
                           }
                         },
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-              const SizedBox(
-                height: 10,
-              ),
-              const Divider(
-                height: 4,
-                thickness: 1,
-              ),
-              _buildQuickItemsRow(),
-              const Divider(
-                height: 4,
-                thickness: 1,
-              ),
-              const Spacer(),
-              _customerCell(),
-              const Divider(
-                height: 10,
-                thickness: 1,
-                endIndent: 20,
-                indent: 20,
-              ),
-              _billableCell(),
-              const Divider(
-                height: 10,
-                thickness: 1,
-                endIndent: 20,
-                indent: 20,
-              ),
-              _serviceItemCell(sheetsManager.serviceItem),
-              const Spacer(),
-              _notesInput(),
-              const SizedBox(
-                height: 20,
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  SizedBox(
-                    width: 150,
-                    child: PlatformElevatedButton(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 15,
+                const SizedBox(
+                  height: 10,
+                ),
+                const Divider(
+                  height: 4,
+                  thickness: 1,
+                ),
+                _buildQuickItemsRow(),
+                const Divider(
+                  height: 4,
+                  thickness: 1,
+                ),
+                const Spacer(),
+                _customerCell(),
+                const Divider(
+                  height: 10,
+                  thickness: 1,
+                  endIndent: 20,
+                  indent: 20,
+                ),
+                _billableCell(),
+                const Divider(
+                  height: 10,
+                  thickness: 1,
+                  endIndent: 20,
+                  indent: 20,
+                ),
+                _serviceItemCell(sheetsManager.serviceItem),
+                const Spacer(),
+                _notesInput(),
+                const SizedBox(
+                  height: 20,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    SizedBox(
+                      width: 150,
+                      child: PlatformElevatedButton(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 15,
+                        ),
+                        onPressed: () => _onSwitchJobPressed(),
+                        child: const Text('Switch Job'),
                       ),
-                      onPressed: () => _onSwitchJobPressed(),
-                      child: const Text('Switch Job'),
                     ),
-                  ),
-                  SizedBox(
-                    width: 150,
-                    child: PlatformElevatedButton(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 15,
+                    SizedBox(
+                      width: 150,
+                      child: PlatformElevatedButton(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 15,
+                        ),
+                        onPressed: () => _onClockInOut(),
+                        color: sheetsManager.currentSheet != null ? Colors.red : Colors.green,
+                        child: Text(sheetsManager.currentSheet != null ? 'Clock Out' : 'Clock In'),
                       ),
-                      onPressed: () => _onClockInOut(),
-                      color: sheetsManager.currentSheet != null ? Colors.red : Colors.green,
-                      child: Text(sheetsManager.currentSheet != null ? 'Clock Out' : 'Clock In'),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(
-                height: 20,
-              ),
-            ],
+                  ],
+                ),
+                const SizedBox(
+                  height: 20,
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -343,15 +362,16 @@ class _HomeState extends State<Home> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(15),
-          onLongPress: () {
+          onTap: () {
             showAdaptiveActionSheet(
               context: context,
-              title: const Text('Default Options'),
+              title: const Text('What would you like to do with this Quick Item?'),
               actions: [
                 BottomSheetAction(
                   leading: Icon(PlatformIcons(context).clockSolid),
                   title: const Text(
                     'Clock In',
+                    style: TextStyle(color: CupertinoColors.systemBlue),
                   ),
                   onPressed: (_) async {
                     Navigator.pop(context);
@@ -366,9 +386,27 @@ class _HomeState extends State<Home> {
                     sheetsManager.billable = job.billable;
                     sheetsManager.customer = job.job;
                     sheetsManager.serviceItem = job.serviceItem;
-                    sheetsManager.notesController.text = job.notes ?? '';
+                    sheetsManager.notesController.clear();
                     sheetsManager.startTime = DateTime.now();
                     await sheetsManager.clockIn();
+                  },
+                ),
+                BottomSheetAction(
+                  leading: Icon(PlatformIcons(context).cloudUploadSolid),
+                  title: const Text(
+                    'Update Current TimeSheet',
+                    style: TextStyle(color: CupertinoColors.systemBlue),
+                  ),
+                  onPressed: (_) async {
+                    Navigator.pop(context);
+                    sheetsManager.billable = job.billable;
+                    sheetsManager.customer = job.job;
+                    sheetsManager.serviceItem = job.serviceItem;
+                    sheetsManager.notesController.clear();
+                    setState(() {});
+                    if (sheetsManager.currentSheet != null) {
+                      sheetsManager.updateSheet();
+                    }
                   },
                 ),
                 BottomSheetAction(
@@ -385,16 +423,6 @@ class _HomeState extends State<Home> {
               ],
               cancelAction: CancelAction(title: const Text('Cancel')),
             );
-          },
-          onTap: () {
-            sheetsManager.billable = job.billable;
-            sheetsManager.customer = job.job;
-            sheetsManager.serviceItem = job.serviceItem;
-            sheetsManager.notesController.text = job.notes ?? '';
-            setState(() {});
-            if (sheetsManager.currentSheet != null) {
-              sheetsManager.updateSheet();
-            }
           },
           child: Ink(
             decoration: BoxDecoration(
@@ -430,12 +458,12 @@ class _HomeState extends State<Home> {
                     maxLines: 1,
                     style: const TextStyle(fontSize: 12, color: Colors.white),
                   ),
-                  AutoSizeText(
-                    'Note: ${job.notes}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: Colors.white),
-                  ),
+                  // AutoSizeText(
+                  //   'Note: ${job.notes}',
+                  //   maxLines: 1,
+                  //   overflow: TextOverflow.ellipsis,
+                  //   style: const TextStyle(fontSize: 12, color: Colors.white),
+                  // ),
                 ],
               ),
             ),
@@ -462,14 +490,16 @@ class _HomeState extends State<Home> {
             prefs: prefs!,
             callback: (int id) async {
               Navigator.of(context).popUntil((route) => route.isFirst);
-              await sheetsManager.clockOut();
+              // if (await sheetsManager.clockOut()) {
               setState(() {
+                TimeSheet? tempsheet = sheetsManager.currentSheet;
                 sheetsManager.clearTimesheet();
                 sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
                 sheetsManager.startTime = DateTime.now();
                 _loadJobDefaults(sheetsManager.customer);
               });
-              await sheetsManager.clockIn();
+              if (await sheetsManager.clockIn()) {}
+              // }
             },
           ),
         );
@@ -840,9 +870,23 @@ class _HomeState extends State<Home> {
       child: Column(
         children: [
           PlatformListTile(
-            trailing: Text(
-              _formatDuration(sheet.duration!),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                AutoSizeText(
+                  'IN: ${DateFormat('hh:mm aa').format(DateTime.parse(sheet.start!).toLocal())}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                AutoSizeText(
+                  'OUT: ${DateFormat('hh:mm aa').format(DateTime.parse(sheet.end!).toLocal())}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                AutoSizeText(
+                  _formatDuration(sheet.duration!),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ],
             ),
             title: AutoSizeText(
               job?.name ?? 'N/A',
@@ -860,9 +904,109 @@ class _HomeState extends State<Home> {
                 Text('NOTES: ${sheet.notes ?? ''}'),
               ],
             ),
+            onTap: () {
+              _updateOldTimesheet(sheet);
+            },
           ),
           const Divider(),
         ],
+      ),
+    );
+  }
+
+  void _updateOldTimesheet(TimeSheet sheet) {
+    bool billable = false;
+    if (sheet.billable == 'Yes') {
+      billable = true;
+    }
+
+    JobCodes? job = _getJob(sheet.jobcode_id!);
+    DateTime startDate = DateTime.parse(sheet.start!);
+    DateTime endDate = DateTime.parse(sheet.end!);
+
+    showPlatformDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (context) => Center(
+        child: Container(
+          width: 300,
+          height: 400,
+          decoration: BoxDecoration(color: CupertinoColors.systemBackground, borderRadius: BorderRadius.circular(15)),
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: StatefulBuilder(
+              builder: (context, setState) => Column(
+                children: [
+                  AutoSizeText(
+                    job?.name ?? 'Unknown',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  PlatformListTile(
+                    title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Billable',
+                          style: TextStyle(color: Colors.grey, fontSize: 15),
+                        ),
+                        Text(
+                          billable ? 'Yes' : 'No',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    trailing: PlatformSwitch(
+                      value: billable,
+                      onChanged: (newVal) => setState(() {
+                        billable = !billable;
+                      }),
+                    ),
+                  ),
+                  const SizedBox(
+                    height: 10,
+                  ),
+                  const Text('START TIME'),
+                  PlatformElevatedButton(
+                    child: AutoSizeText(
+                      DateFormat('hh:mm aa').format(DateTime.parse(sheet.start!).toLocal()),
+                    ),
+                    onPressed: () {
+                      showPlatformDatePicker(
+                        context: context,
+                        initialDate: startDate,
+                        firstDate: DateTime.now().subtract(const Duration(days: 3)),
+                        lastDate: DateTime.now(),
+                        cupertino: (context, platform) => CupertinoDatePickerData(
+                          mode: CupertinoDatePickerMode.dateAndTime,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(
+                    height: 10,
+                  ),
+                  const Text('END TIME'),
+                  PlatformElevatedButton(
+                    child: AutoSizeText(
+                      DateFormat('hh:mm aa').format(DateTime.parse(sheet.end!).toLocal()),
+                    ),
+                    onPressed: () {
+                      showPlatformDatePicker(
+                        context: context,
+                        initialDate: endDate,
+                        firstDate: DateTime.now().subtract(const Duration(days: 3)),
+                        lastDate: DateTime.now(),
+                        cupertino: (context, platform) => CupertinoDatePickerData(
+                          mode: CupertinoDatePickerMode.dateAndTime,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
