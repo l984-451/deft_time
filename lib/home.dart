@@ -489,16 +489,16 @@ class _HomeState extends State<Home> {
             prefs: prefs!,
             callback: (int id) async {
               Navigator.of(context).popUntil((route) => route.isFirst);
-              // if (await sheetsManager.clockOut()) {
-              setState(() {
-                TimeSheet? tempsheet = sheetsManager.currentSheet;
-                sheetsManager.clearTimesheet();
-                sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
-                sheetsManager.startTime = DateTime.now();
-                _loadJobDefaults(sheetsManager.customer);
-              });
-              if (await sheetsManager.clockIn()) {}
-              // }
+              if (await sheetsManager.clockOut()) {
+                setState(() {
+                  // TimeSheet? tempsheet = sheetsManager.currentSheet;
+                  sheetsManager.clearTimesheet();
+                  sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
+                  sheetsManager.startTime = DateTime.now();
+                  _loadJobDefaults(sheetsManager.customer);
+                });
+                if (await sheetsManager.clockIn()) {}
+              }
             },
           ),
         );

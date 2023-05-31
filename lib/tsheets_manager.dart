@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'dart:developer';
 import 'dart:io';
 import 'dart:convert';
 import 'package:codable/codable.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:time/app_constants.dart';
@@ -53,7 +51,7 @@ Future<List<User>> getUsers() async {
   return users;
 }
 
-Future<List<TimeSheet>> getUserTimeSheets() async {
+Future<List<TimeSheet>> getUserTimeSheets({int page = 1}) async {
   String? userId = globalUser?.id.toString();
   if (userId == null) return [];
 
@@ -61,10 +59,14 @@ Future<List<TimeSheet>> getUserTimeSheets() async {
   final formatter = DateFormat('y-MM-dd');
   String startString = formatter.format(mostRecentWeekday(DateTime.now(), 1));
   String endString = formatter.format(DateTime.now());
-  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/timesheets?start_date=$startString&end_date=$endString&user_ids=$userId');
+  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/timesheets?start_date=$startString&end_date=$endString&user_ids=$userId&page=$page');
   final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
   final Map<String, dynamic> body = json.decode(response.body);
   final Map<String, dynamic>? results = body['results'];
+  if ((body['more'] == true)) {
+    print('more TIMESHEETS to get');
+    sheets += await _checkForMore(getUserTimeSheets, page);
+  }
   if (results != null) {
     final Map<String, dynamic> timeSheetMap = results['timesheets'];
     for (Map<String, dynamic> timesheet in timeSheetMap.values) {
@@ -95,14 +97,17 @@ Future<TimeSheet?> getCurrentStatus() async {
   }
 }
 
-Future<List<JobCodes>> getJobcodes() async {
+Future<List<JobCodes>> getJobcodes({int page = 1}) async {
   List<JobCodes> codes = [];
-  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/jobcodes');
+  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/jobcodes?page=$page');
   final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
   final Map<String, dynamic> body = json.decode(response.body);
   final Map<String, dynamic> jobCodeMap = body['results']['jobcodes'];
-  inspect(response);
-  print(body);
+
+  if ((body['more'] == true)) {
+    print('more JOBCODES to get');
+    codes += await _checkForMore(getJobcodes, page);
+  }
   for (Map<String, dynamic> jobCode in jobCodeMap.values) {
     JobCodes code = JobCodes.fromJson(jobCode);
     codes.add(code);
@@ -110,15 +115,20 @@ Future<List<JobCodes>> getJobcodes() async {
   return codes;
 }
 
-Future<List<JobCodeAssignment>> getJobcodeAssignments() async {
+Future<List<JobCodeAssignment>> getJobcodeAssignments({int page = 1}) async {
   String? userId = globalUser?.id.toString();
   if (userId == null) return [];
   List<JobCodeAssignment> codes = [];
-  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/jobcode_assignments?user_ids=$userId');
+  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/jobcode_assignments?page=$page&user_ids=$userId');
   final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
-
   final Map<String, dynamic> body = json.decode(response.body);
   final Map<String, dynamic> jobCodeMap = body['results']['jobcode_assignments'];
+
+  if ((body['more'] == true)) {
+    print('more JOBCODE ASSIGNMENTS to get');
+    codes += await _checkForMore(getJobcodeAssignments, page);
+  }
+
   for (Map<String, dynamic> jobCode in jobCodeMap.values) {
     JobCodeAssignment code = JobCodeAssignment.fromJson(jobCode);
     codes.add(code);
@@ -126,13 +136,17 @@ Future<List<JobCodeAssignment>> getJobcodeAssignments() async {
   return codes;
 }
 
-Future<List<CustomFields>> getCustomFields() async {
+Future<List<CustomFields>> getCustomFields({int page = 1}) async {
   List<CustomFields> customFields = [];
-  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfields');
+  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfields?page=$page');
   final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
 
   final Map<String, dynamic> body = json.decode(response.body);
   final Map<String, dynamic> customFieldsMap = body['results']['customfields'];
+  if ((body['more'] == true)) {
+    print('more CUSTOM FIELDS to get');
+    customFields += await _checkForMore(getCustomFields, page);
+  }
   for (Map<String, dynamic> jobCode in customFieldsMap.values) {
     CustomFields code = CustomFields.fromJson(jobCode);
     customFields.add(code);
@@ -140,13 +154,17 @@ Future<List<CustomFields>> getCustomFields() async {
   return customFields;
 }
 
-Future<List<Project>> getProjects() async {
+Future<List<Project>> getProjects({int page = 1}) async {
   List<Project> projectsTemp = [];
-  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/projects');
+  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/projects?page=$page');
   final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
-
   final Map<String, dynamic> body = json.decode(response.body);
   final Map<String, dynamic> projectsMap = body['results']['projects'];
+
+  if ((body['more'] == true)) {
+    print('more PROJECTS to get');
+    projectsTemp += await _checkForMore(getProjects, page);
+  }
   for (Map<String, dynamic> jobCode in projectsMap.values) {
     Project code = Project.fromJson(jobCode);
     projectsTemp.add(code);
@@ -154,12 +172,16 @@ Future<List<Project>> getProjects() async {
   return projectsTemp;
 }
 
-Future<List<CustomFieldItem>> getCustomFieldItems(int fieldId) async {
+Future<List<CustomFieldItem>> getCustomFieldItems(int fieldId, {int page = 1}) async {
   List<CustomFieldItem> customFieldItems = [];
-  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfielditems?customfield_id=$fieldId');
+  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfielditems?customfield_id=$fieldId&page=$page');
   final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
   final Map<String, dynamic> body = json.decode(response.body);
 
+  if ((body['more'] == true)) {
+    print('more CUSTOM FIELD ITEMS to get');
+    customFieldItems += await _checkForMore(getCustomFieldItems, page);
+  }
   final Map<String, dynamic> customFieldItemsMap = body['results']['customfielditems'];
   for (Map<String, dynamic> customField in customFieldItemsMap.values) {
     CustomFieldItem code = CustomFieldItem.fromJson(customField);
@@ -168,19 +190,28 @@ Future<List<CustomFieldItem>> getCustomFieldItems(int fieldId) async {
   return customFieldItems;
 }
 
-Future<List<CustomFieldItemFilter>> getCustomFieldItemFilters() async {
+Future<List<CustomFieldItemFilter>> getCustomFieldItemFilters({int page = 1}) async {
   List<CustomFieldItemFilter> customFieldItemsFilters = [];
   String? userId = globalUser?.id.toString();
   if (userId == null) return [];
-  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfielditem_filters?user_id=$userId');
+  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfielditem_filters?user_id=$userId&page=$page');
   final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
   final Map<String, dynamic> body = json.decode(response.body);
+
+  if ((body['more'] == true)) {
+    print('more CUSTOM FIELD ITEM FILTERS to get');
+    customFieldItemsFilters += await _checkForMore(getCustomFieldItems, page);
+  }
   final Map<String, dynamic> filtersMap = body['results']['customfielditem_filters'];
   for (Map<String, dynamic> filter in filtersMap.values) {
     CustomFieldItemFilter code = CustomFieldItemFilter.fromJson(filter);
     customFieldItemsFilters.add(code);
   }
   return customFieldItemsFilters;
+}
+
+Future<dynamic> _checkForMore(Function getMore, int page) async {
+  return await getMore(page: page + 1);
 }
 
 //ANCHOR - SHEETS MANAGER
@@ -411,6 +442,7 @@ class SheetsManager extends ChangeNotifier {
         },
         body: jsonEncode(body),
       );
+      getTimesheets();
       return _decodeResponse(response.body, true, tempSheet: tempSheet);
     }
   }
@@ -471,6 +503,7 @@ class SheetsManager extends ChangeNotifier {
       _afterCurrentSheetChecked();
       notifyListeners();
     }
+    getTimesheets();
     return loggedIn;
   }
 
@@ -533,12 +566,8 @@ class SheetsManager extends ChangeNotifier {
   }
 
   Future<void> _getAssignments() async {
-    // List<JobCodeAssignment> tempList = [];
-    // String listString = prefs.getString('assignments') ?? '';
-    // tempList = convertStringToCodableList(listString, JobCodeAssignment.fromJson) ?? [];
-    // assignments = tempList;
     assignments = await getJobcodeAssignments();
-    // prefs.setString('assignments', convertCodableListToString(projects) ?? '');
+    prefs!.setString('assignments', convertCodableListToString(projects) ?? '');
   }
 
   void _getAssignmentsLocal() {
