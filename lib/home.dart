@@ -29,7 +29,6 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   final _tabController = PlatformTabController();
-  SharedPreferences? prefs;
   final sheetsManager = SheetsManager.instance;
 
   bool _loadingTimesheets = false;
@@ -38,8 +37,8 @@ class _HomeState extends State<Home> {
   void initState() {
     super.initState();
     SharedPreferences.getInstance().then((localPrefs) {
-      prefs = localPrefs;
-      String? user = localPrefs.getString('user');
+      prefs ??= localPrefs;
+      String? user = prefs!.getString('user');
       if (user != null) {
         globalUser = convertStringToCodableObject(user, User.fromJson);
       }
@@ -759,19 +758,23 @@ class _HomeState extends State<Home> {
         context: context,
         child: RefreshIndicator.adaptive(
           onRefresh: () async {
+            print('refreshed');
             setState(() {
               _loadingTimesheets = true;
               sheetsManager.serverDataLoading = true;
             });
             final tempSheets = await getUserTimeSheets();
             sheetsManager.timesheets.clear();
-            setState(() {
-              sheetsManager.timesheets = tempSheets;
-              sheetsManager.serverDataLoading = false;
-              _loadingTimesheets = false;
-            });
+            setState(
+              () {
+                sheetsManager.timesheets = tempSheets;
+                sheetsManager.serverDataLoading = false;
+                _loadingTimesheets = false;
+              },
+            );
           },
           child: GroupedListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             elements: sheetsManager.timesheets,
             groupBy: (TimeSheet e) => e.date!,
             groupSeparatorBuilder: (String value) => _timesheetSeparator(value),
@@ -1045,7 +1048,10 @@ class _HomeState extends State<Home> {
             globalUser = user;
             String? codableUser = convertCodableObjectToString(globalUser);
             if (codableUser != null) {
+              print('setting default user');
               prefs!.setString('user', codableUser);
+            } else {
+              print('codable user is null');
             }
             setState(() {
               sheetsManager.duration.value = 0;

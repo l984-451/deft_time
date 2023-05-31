@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_platform_widgets/flutter_platform_widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:time/tsheets_data_models.dart';
 
 const String koauthTokenBain = 'S.12__4658de57a08268b43ff73b18159df14beff4de96';
@@ -12,6 +13,7 @@ const String koauthTokenJonathan = 'S.12__5a5433266b5adbe831af841e742830c557b6c8
 
 String authToken = '';
 
+SharedPreferences? prefs;
 User? globalUser;
 
 extension DateTimeIso8601 on DateTime {

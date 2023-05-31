@@ -78,6 +78,7 @@ Future<List<TimeSheet>> getUserTimeSheets() async {
 
 Future<TimeSheet?> getCurrentStatus() async {
   String? userId = globalUser?.id.toString();
+
   if (userId == null) {
     return null;
   }
@@ -100,6 +101,8 @@ Future<List<JobCodes>> getJobcodes() async {
   final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
   final Map<String, dynamic> body = json.decode(response.body);
   final Map<String, dynamic> jobCodeMap = body['results']['jobcodes'];
+  inspect(response);
+  print(body);
   for (Map<String, dynamic> jobCode in jobCodeMap.values) {
     JobCodes code = JobCodes.fromJson(jobCode);
     codes.add(code);
@@ -184,18 +187,18 @@ Future<List<CustomFieldItemFilter>> getCustomFieldItemFilters() async {
 class SheetsManager extends ChangeNotifier {
   SheetsManager._privateConstructor() {
     SharedPreferences.getInstance().then((tempPrefs) async {
-      prefs = tempPrefs;
+      prefs ??= tempPrefs;
       serverDataLoading = true;
       loadLocalData();
-      await getCurrentTimesheet();
-      firstLoad = false;
-      notifyListeners();
-      await loadServerData();
+      getCurrentTimesheet().then((value) async {
+        firstLoad = false;
+        notifyListeners();
+        await loadServerData();
+      });
     });
   }
   static final SheetsManager instance = SheetsManager._privateConstructor();
   SheetsManager();
-  late final SharedPreferences prefs;
 
   bool firstLoad = true;
   bool serverDataLoading = false;
@@ -263,7 +266,6 @@ class SheetsManager extends ChangeNotifier {
     serverDataLoading = true;
     notifyListeners();
     if (startTime != null && lastTimesheetEnd != null && startTime!.isBefore(lastTimesheetEnd!)) {
-      print('here we are');
       Map<String, dynamic> body = {
         'data': [
           {
@@ -283,7 +285,6 @@ class SheetsManager extends ChangeNotifier {
       );
 
       if (_decodeResponse(response.body, false)) {
-        print('updated old sheet. now update new one');
         await _updateCurrentSheet();
         await getTimesheets();
       } else {
@@ -384,7 +385,7 @@ class SheetsManager extends ChangeNotifier {
       showQuickPopup(NavigationService.navigatorKey.currentContext!, title, 'There is no active timesheet. Please reload the app.');
       return false;
     } else {
-      print('new start time: ${DateTime.now().subtract(const Duration(hours: 5)).toLocal().toIso8601StringWithTimezone()}');
+      // print('new start time: ${DateTime.now().subtract(const Duration(hours: 5)).toLocal().toIso8601StringWithTimezone()}');
       Map<String, dynamic> body = {
         'data': [
           {
@@ -503,18 +504,6 @@ class SheetsManager extends ChangeNotifier {
     return true;
   }
 
-  Future<bool> _updateCurrentSheetEndAndCreateNewSheet(TimeSheet clockOutSheet) async {
-    final clockInSheet = currentSheet!;
-    clockOutSheet.end = startTime!.subtract(const Duration(minutes: 1)).toLocal().toIso8601StringWithTimezone();
-    currentSheet = clockOutSheet;
-    if (await clockOut(retry: true)) {
-      print('successfully clocked out. now clock in.');
-    } else {
-      print('didnt clock out');
-    }
-    return false;
-  }
-
   void updateNoteController(String newVal) {
     notesController.text = newVal;
   }
@@ -553,7 +542,7 @@ class SheetsManager extends ChangeNotifier {
   }
 
   void _getAssignmentsLocal() {
-    String listString = prefs.getString('assignments') ?? '';
+    String listString = prefs!.getString('assignments') ?? '';
     assignments = convertStringToCodableList(listString, JobCodeAssignment.fromJson) ?? [];
   }
 
@@ -565,37 +554,37 @@ class SheetsManager extends ChangeNotifier {
         projects.add(project);
       }
     }
-    prefs.setString('projects', convertCodableListToString(projects) ?? '');
+    prefs!.setString('projects', convertCodableListToString(projects) ?? '');
   }
 
   void _getProjectsLocal() {
-    String listString = prefs.getString('projects') ?? '';
+    String listString = prefs!.getString('projects') ?? '';
     projects = convertStringToCodableList(listString, Project.fromJson) ?? [];
   }
 
   Future<void> _getCustomFields() async {
     customFields = await getCustomFields();
-    prefs.setString('customFields', convertCodableListToString(customFields) ?? '');
+    prefs!.setString('customFields', convertCodableListToString(customFields) ?? '');
   }
 
   void _getCustomFieldsLocal() {
-    String listString = prefs.getString('customFields') ?? '';
+    String listString = prefs!.getString('customFields') ?? '';
     customFields = convertStringToCodableList(listString, CustomFields.fromJson) ?? [];
   }
 
   Future<void> _getCustomFieldItemFilters() async {
     customFieldItemFilters = await getCustomFieldItemFilters();
-    prefs.setString('customFieldItemFilters', convertCodableListToString(customFieldItemFilters) ?? '');
+    prefs!.setString('customFieldItemFilters', convertCodableListToString(customFieldItemFilters) ?? '');
   }
 
   void _getCustomFieldItemFiltersLocal() {
-    String listString = prefs.getString('customFieldItemFilters') ?? '';
+    String listString = prefs!.getString('customFieldItemFilters') ?? '';
     customFieldItemFilters = convertStringToCodableList(listString, CustomFieldItemFilter.fromJson) ?? [];
   }
 
   Future<void> getServiceItemForUser() async {
     List<CustomFieldItem> tempList = [];
-    String listString = prefs.getString('serviceItems') ?? '';
+    String listString = prefs!.getString('serviceItems') ?? '';
     tempList = convertStringToCodableList(listString, CustomFieldItem.fromJson) ?? [];
     serviceItems = tempList;
     List<CustomFieldItem> tempServiceList = await getCustomFieldItems(320940);
@@ -607,11 +596,11 @@ class SheetsManager extends ChangeNotifier {
         }
       }
     }
-    prefs.setString('serviceItems', convertCodableListToString(serviceItems) ?? '');
+    prefs!.setString('serviceItems', convertCodableListToString(serviceItems) ?? '');
   }
 
   void getServiceItemForUserLocal() {
-    String listString = prefs.getString('serviceItems') ?? '';
+    String listString = prefs!.getString('serviceItems') ?? '';
     serviceItems = convertStringToCodableList(listString, CustomFieldItem.fromJson) ?? [];
   }
 
@@ -636,11 +625,11 @@ class SheetsManager extends ChangeNotifier {
 
   Future<void> _getAllJobCodes() async {
     allJobCodes = await getJobcodes();
-    prefs.setString('allJobCodes', convertCodableListToString(allJobCodes) ?? '');
+    prefs!.setString('allJobCodes', convertCodableListToString(allJobCodes) ?? '');
   }
 
   void _getAllJobCodesLocal() {
-    String listString = prefs.getString('allJobCodes') ?? '';
+    String listString = prefs!.getString('allJobCodes') ?? '';
     allJobCodes = convertStringToCodableList(listString, JobCodes.fromJson) ?? [];
   }
 
@@ -655,10 +644,10 @@ class SheetsManager extends ChangeNotifier {
     } else {
       durationTimer?.cancel();
       duration.value = 0;
-      String defaultsString = prefs.getString('jobDefaults') ?? '';
+      String defaultsString = prefs!.getString('jobDefaults') ?? '';
       List<JobDefaults> defaultList = convertStringToCodableList(defaultsString, JobDefaults.fromJson) ?? [];
       if (defaultList.isNotEmpty && sheetsManager.currentSheet == null) {
-        int? recentJob = prefs.getInt('jobRecent');
+        int? recentJob = prefs!.getInt('jobRecent');
         JobDefaults? x;
         if (recentJob != null) {
           x = defaultList.firstWhereOrNull((element) => element.job?.id == recentJob);
@@ -675,12 +664,11 @@ class SheetsManager extends ChangeNotifier {
         notesController.text = '';
       }
     }
-    print('last time sheet end: $lastTimesheetEnd');
     notifyListeners();
   }
 
   void _getUserLocal() {
-    String? user = prefs.getString('user');
+    String? user = prefs!.getString('user');
     if (user != null) {
       globalUser = convertStringToCodableObject(user, User.fromJson);
     }
