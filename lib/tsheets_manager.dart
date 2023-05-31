@@ -388,7 +388,6 @@ class SheetsManager extends ChangeNotifier {
       Map<String, dynamic> body = {
         'data': [
           {
-            'start': DateTime.now().subtract(const Duration(hours: 5)).toLocal().toIso8601StringWithTimezone(),
             'id': sheetsManager.currentSheet!.id,
             'end': DateTime.now().toLocal().toIso8601StringWithTimezone(),
           }
