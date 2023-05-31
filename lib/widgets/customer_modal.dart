@@ -52,18 +52,21 @@ class _CustomerModalState extends State<CustomerModal> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: CupertinoColors.systemBackground,
-      child: ListView.separated(
-        separatorBuilder: (context, index) => const Divider(),
-        itemBuilder: (context, index) {
-          if (index <= _defaultJobCounter - 1) {
-            return _buildListTile(context, localJobs[index], true);
-          } else {
-            return _buildListTile(context, localJobs[index], false);
-          }
-        },
-        itemCount: localJobs.length,
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Container(
+        color: CupertinoColors.systemBackground,
+        child: ListView.separated(
+          separatorBuilder: (context, index) => const Divider(),
+          itemBuilder: (context, index) {
+            if (index <= _defaultJobCounter - 1) {
+              return _buildListTile(context, localJobs[index], true);
+            } else {
+              return _buildListTile(context, localJobs[index], false);
+            }
+          },
+          itemCount: localJobs.length,
+        ),
       ),
     );
   }
@@ -116,12 +119,12 @@ class _CustomerModalState extends State<CustomerModal> {
           maxLines: 1,
           style: const TextStyle(fontSize: 12),
         ),
-        AutoSizeText(
-          'Note: ${job.notes}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 12),
-        ),
+        // AutoSizeText(
+        //   'Note: ${job.notes}',
+        //   maxLines: 1,
+        //   overflow: TextOverflow.ellipsis,
+        //   style: const TextStyle(fontSize: 12),
+        // ),
       ],
     );
   }

@@ -1086,10 +1086,11 @@ class _HomeState extends State<Home> {
     if (x != null) {
       sheetsManager.billable = x.billable;
       sheetsManager.serviceItem = x.serviceItem;
-      if (x.notes != null) {
-        sheetsManager.notesController.text = x.notes!;
-      }
+      // if (x.notes != null) {
+      //   sheetsManager.notesController.text = x.notes!;
+      // }
     }
+    sheetsManager.notesController.clear();
   }
 
   void _saveJobDefaults() {
