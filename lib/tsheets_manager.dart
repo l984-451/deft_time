@@ -362,7 +362,7 @@ class SheetsManager extends ChangeNotifier {
   }
 
   Future<bool> updateOldSheet(TimeSheet sheet) async {
-    showLoadingIndicator(NavigationService.navigatorKey.currentContext!, 'loading...');
+    showLoadingIndicator(NavigationService.navigatorKey.currentContext!, 'saving...');
     serverDataLoading = true;
     notifyListeners();
     Map<String, dynamic> body = {
