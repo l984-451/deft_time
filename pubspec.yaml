@@ -1,7 +1,7 @@
 name: time
 description: A simple app to interface with TSheets Time.
 publish_to: "none"
-version: 1.0.0+7
+version: 1.0.0+8
 
 environment:
   sdk: ">=3.0.0"
@@ -16,7 +16,7 @@ dependencies:
   convert: ^3.1.1
   flutter:
     sdk: flutter
-  flutter_platform_widgets: ^3.3.1
+  flutter_platform_widgets: ^3.3.5
   flutter_web_auth_2: ^2.1.4
   grouped_list: ^5.1.2
   http: ^0.13.5

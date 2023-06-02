@@ -29,6 +29,11 @@ class MainApp extends StatelessWidget {
           color: CupertinoColors.systemBackground,
           navigatorKey: NavigationService.navigatorKey,
           cupertino: (context, platform) => CupertinoAppData(),
+          material: (context, platform) => MaterialAppData(
+            theme: ThemeData(
+              useMaterial3: true,
+            ),
+          ),
           home: const Home(),
         ),
       ),

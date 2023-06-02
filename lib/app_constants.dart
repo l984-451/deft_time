@@ -1,4 +1,6 @@
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_platform_widgets/flutter_platform_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:time/tsheets_data_models.dart';
@@ -45,6 +47,49 @@ void showQuickPopup(BuildContext context, String title, String message) {
           ),
         )
       ],
+    ),
+  );
+}
+
+void showLoadingIndicator(BuildContext context, String? text) {
+  showPlatformDialog(
+    barrierDismissible: false,
+    context: context,
+    builder: (popupContext) => Center(
+      child: Container(
+        width: text == null ? 75 : 100,
+        height: text == null ? 75 : 100,
+        decoration: const BoxDecoration(
+          borderRadius: BorderRadius.all(
+            Radius.circular(15),
+          ),
+          color: CupertinoColors.lightBackgroundGray,
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              text != null
+                  ? AutoSizeText(
+                      text,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    )
+                  : const SizedBox.shrink(),
+              SizedBox(
+                width: 50,
+                height: 50,
+                child: PlatformCircularProgressIndicator(
+                  material: (_, __) => MaterialProgressIndicatorData(color: Colors.black),
+                  cupertino: (_, __) => CupertinoProgressIndicatorData(color: Colors.black),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     ),
   );
 }

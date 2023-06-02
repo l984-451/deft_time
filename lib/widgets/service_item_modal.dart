@@ -29,9 +29,12 @@ class _ServiceItemModalState extends State<ServiceItemModal> {
   Widget build(BuildContext context) {
     return Container(
       color: CupertinoColors.systemBackground,
-      child: ListView.builder(
+      child: ListView.separated(
+        separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
-          return _buildListTile(sheetsManager.serviceItems[index]);
+          return PlatformWidget(
+              material: (context, platform) => Material(child: _buildListTile(sheetsManager.serviceItems[index])),
+              cupertino: (context, platform) => _buildListTile(sheetsManager.serviceItems[index]));
         },
         itemCount: sheetsManager.serviceItems.length,
       ),

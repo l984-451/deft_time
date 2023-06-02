@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:ui';
 import 'package:adaptive_action_sheet/adaptive_action_sheet.dart';
 import 'package:auto_size_text/auto_size_text.dart';
@@ -15,10 +16,13 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:time/app_constants.dart';
 import 'package:time/debug_menu.dart';
+import 'package:time/keyboard_avoiding_popup.dart';
 import 'package:time/tsheets_data_models.dart';
 import 'package:time/tsheets_manager.dart';
 import 'package:time/widgets/customer_modal.dart';
 import 'package:time/widgets/service_item_modal.dart';
+
+import 'main.dart';
 
 class Home extends StatefulWidget {
   const Home({Key? key}) : super(key: key);
@@ -72,6 +76,9 @@ class _HomeState extends State<Home> {
       iosContentBottomPadding: true,
       iosContentPadding: true,
       tabController: _tabController,
+      material: (context, platform) => MaterialTabScaffoldData(
+        resizeToAvoidBottomInset: true,
+      ),
       appBarBuilder: (_, index) => _buildAppBar(index),
       bodyBuilder: (_, index) => _buildBody(index),
       items: _bottomBarItems(),
@@ -115,7 +122,15 @@ class _HomeState extends State<Home> {
   Widget _leadingWidget() {
     return Consumer<SheetsManager>(builder: (context, _, __) {
       if (sheetsManager.serverDataLoading) {
-        return PlatformCircularProgressIndicator();
+        return SizedBox(
+          width: 10,
+          height: 10,
+          child: Center(
+            child: PlatformCircularProgressIndicator(
+                // material: (context, platform) => MaterialProgressIndicatorData(color: Colors.white),
+                ),
+          ),
+        );
       } else {
         return const SizedBox.shrink();
       }
@@ -393,7 +408,7 @@ class _HomeState extends State<Home> {
                 BottomSheetAction(
                   leading: Icon(PlatformIcons(context).cloudUploadSolid),
                   title: const Text(
-                    'Update Current TimeSheet',
+                    'Update Current Timesheet',
                     style: TextStyle(color: CupertinoColors.systemBlue),
                   ),
                   onPressed: (_) async {
@@ -536,7 +551,11 @@ class _HomeState extends State<Home> {
     _saveJobDefaults();
   }
 
-  Widget _notesInput() {
+  Widget _notesInput({TimeSheet? sheet}) {
+    final controller = TextEditingController();
+    if (sheet != null) {
+      controller.text = sheet.notes ?? '';
+    }
     return PlatformListTile(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,13 +571,17 @@ class _HomeState extends State<Home> {
               keyboardType: TextInputType.text,
               textInputAction: TextInputAction.done,
               scrollPadding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-              controller: sheetsManager.notesController,
+              controller: sheet != null ? controller : sheetsManager.notesController,
               onEditingComplete: () {
                 FocusManager.instance.primaryFocus?.unfocus();
-                if (sheetsManager.currentSheet != null) {
-                  sheetsManager.updateSheet();
+                if (sheet == null) {
+                  if (sheetsManager.currentSheet != null) {
+                    sheetsManager.updateSheet();
+                  }
+                  _saveJobDefaults();
+                } else {
+                  sheet.notes = controller.text;
                 }
-                _saveJobDefaults();
               },
             ),
           ),
@@ -567,7 +590,7 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Widget _serviceItemCell(CustomFieldItem? serviceItem) {
+  Widget _serviceItemCell(CustomFieldItem? serviceItem, {TimeSheet? sheet, Function? completion}) {
     return PlatformListTile(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -592,12 +615,20 @@ class _HomeState extends State<Home> {
           context: context,
           builder: (_) => ServiceItemModal(
             callback: (CustomFieldItem item) {
-              setState(() {
-                sheetsManager.serviceItem = item;
-                sheetsManager.updateSheet();
-                Navigator.pop(context);
-              });
-              _saveJobDefaults();
+              if (sheet == null) {
+                setState(() {
+                  sheetsManager.serviceItem = item;
+                  sheetsManager.updateSheet();
+                  Navigator.pop(context);
+                });
+                _saveJobDefaults();
+              } else {
+                sheet.customfields!['320940'] = item.name;
+                if (completion != null) {
+                  completion();
+                  Navigator.pop(context);
+                }
+              }
             },
           ),
         );
@@ -645,20 +676,35 @@ class _HomeState extends State<Home> {
     }
   }
 
-  Widget _customerCell() {
-    JobCodes? parentJob = _getParentJob(sheetsManager.customer?.id);
-    JobCodes? parentParentJob;
-
-    if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
-
+  Widget _customerCell({TimeSheet? sheet, Function? completion}) {
     String parentNames = '';
+    String customerName = '';
+    if (sheet == null) {
+      JobCodes? parentJob = _getParentJob(sheetsManager.customer?.id);
+      JobCodes? parentParentJob;
 
-    if (parentJob != null) {
-      parentNames = parentJob.name;
-      if (parentParentJob != null) {
-        parentNames = '${parentParentJob.name} > ${parentJob.name}';
+      if (parentJob != null) {
+        parentNames = parentJob.name;
+        parentParentJob = _getJob(parentJob.parent_id);
+        if (parentParentJob != null) {
+          parentNames = '${parentParentJob.name} > ${parentJob.name}';
+        }
       }
+      customerName = sheetsManager.customer?.name ?? 'Unknown';
+    } else {
+      JobCodes? parentJob = _getParentJob(sheet.jobcode_id);
+      JobCodes? parentParentJob;
+
+      if (parentJob != null) {
+        parentParentJob = _getJob(parentJob.parent_id);
+        parentNames = parentJob.name;
+        if (parentParentJob != null) {
+          parentNames = '${parentParentJob.name} > ${parentJob.name}';
+        }
+      }
+      customerName = _getJob(sheet.jobcode_id!)?.name ?? 'Unknown';
     }
+
     return PlatformListTile(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -668,7 +714,7 @@ class _HomeState extends State<Home> {
             style: TextStyle(color: Colors.grey, fontSize: 15),
           ),
           Text(
-            sheetsManager.customer?.name ?? 'Unknown',
+            customerName,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           Text(
@@ -683,13 +729,31 @@ class _HomeState extends State<Home> {
           context: context,
           builder: (context) => CustomerModal(
             prefs: prefs!,
-            callback: (int id) {
-              Navigator.of(context).popUntil((route) => route.isFirst);
-              setState(() {
-                sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
-                _loadJobDefaults(sheetsManager.customer);
-                sheetsManager.updateSheet();
-              });
+            callback: (int id, int routeIndex) {
+              if (sheet == null) {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              }
+              setState(
+                () {
+                  if (sheet == null) {
+                    sheetsManager.customer = sheetsManager.allJobCodes.firstWhereOrNull((element) => element.id == id);
+                    _loadJobDefaults(sheetsManager.customer);
+                    sheetsManager.updateSheet();
+                  } else {
+                    sheet.jobcode_id = id;
+                    if (completion != null) {
+                      completion();
+                      int count = 0;
+                      Navigator.popUntil(
+                        context,
+                        (route) {
+                          return count++ == routeIndex;
+                        },
+                      );
+                    }
+                  }
+                },
+              );
             },
           ),
         );
@@ -758,7 +822,6 @@ class _HomeState extends State<Home> {
         context: context,
         child: RefreshIndicator.adaptive(
           onRefresh: () async {
-            print('refreshed');
             setState(() {
               _loadingTimesheets = true;
               sheetsManager.serverDataLoading = true;
@@ -778,7 +841,12 @@ class _HomeState extends State<Home> {
             elements: sheetsManager.timesheets,
             groupBy: (TimeSheet e) => e.date!,
             groupSeparatorBuilder: (String value) => _timesheetSeparator(value),
-            indexedItemBuilder: (context, element, index) => _timesheetTile(element),
+            indexedItemBuilder: (context, element, index) => PlatformWidget(
+              cupertino: (context, platform) => _timesheetTile(element),
+              material: (context, platform) => Material(
+                child: _timesheetTile(element),
+              ),
+            ),
             order: GroupedListOrder.DESC,
           ),
         ),
@@ -854,20 +922,6 @@ class _HomeState extends State<Home> {
 
   Widget _timesheetTile(TimeSheet sheet) {
     JobCodes? job = _getJob(sheet.jobcode_id!);
-    // JobCodes? parentJob = _getParentJob(sheet.jobcode_id!);
-    // JobCodes? parentParentJob;
-
-    // if (parentJob != null) parentParentJob = _getJob(parentJob.parent_id);
-
-    // String parentNames = '';
-
-    // if (parentJob != null) {
-    //   parentNames = parentJob.name;
-    //   if (parentParentJob != null) {
-    //     parentNames = '${parentParentJob.name} > ${parentJob.name}';
-    //   }
-    // }
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -918,94 +972,185 @@ class _HomeState extends State<Home> {
   }
 
   void _updateOldTimesheet(TimeSheet sheet) {
+    TimeSheet tempSheet = sheet.copy();
     bool billable = false;
     if (sheet.billable == 'Yes') {
       billable = true;
     }
-
-    JobCodes? job = _getJob(sheet.jobcode_id!);
-    DateTime startDate = DateTime.parse(sheet.start!);
-    DateTime endDate = DateTime.parse(sheet.end!);
+    // int sheetId = sheet.id!;
+    // JobCodes? job = _getJob(sheet.jobcode_id!);
+    CustomFieldItem? serviceItem = sheetsManager.serviceItems.firstWhereOrNull((i) => i.name == sheet.customfields!['320940']);
+    DateTime startDate = DateTime.parse(sheet.start!).toLocal();
+    DateTime endDate = DateTime.parse(sheet.end!).toLocal();
 
     showPlatformDialog(
-      barrierDismissible: true,
-      context: context,
-      builder: (context) => Center(
-        child: Container(
-          width: 300,
-          height: 400,
-          decoration: BoxDecoration(color: CupertinoColors.systemBackground, borderRadius: BorderRadius.circular(15)),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: StatefulBuilder(
-              builder: (context, setState) => Column(
-                children: [
-                  AutoSizeText(
-                    job?.name ?? 'Unknown',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  PlatformListTile(
-                    title: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+      barrierDismissible: false,
+      context: NavigationService.navigatorKey.currentContext!,
+      builder: (context) => KeyboardAvoiding(
+        kFactor: 0.5,
+        child: Center(
+          child: Container(
+            width: 300,
+            height: 450,
+            decoration: BoxDecoration(color: CupertinoColors.systemBackground, borderRadius: BorderRadius.circular(15)),
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: StatefulBuilder(
+                builder: (context, setThisState) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const AutoSizeText(
+                      'Edit Timesheet',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    _customerCell(sheet: sheet, completion: () => setThisState(() {})),
+                    PlatformListTile(
+                      title: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Billable',
+                            style: TextStyle(color: Colors.grey, fontSize: 15),
+                          ),
+                          Text(
+                            billable ? 'Yes' : 'No',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      trailing: PlatformSwitch(
+                        value: billable,
+                        onChanged: (newVal) => setThisState(() {
+                          billable = !billable;
+                        }),
+                      ),
+                    ),
+                    _serviceItemCell(
+                      serviceItem,
+                      sheet: sheet,
+                      completion: () => setThisState(() {
+                        serviceItem = sheetsManager.serviceItems.firstWhereOrNull((i) => i.name == sheet.customfields!['320940']);
+                        print(serviceItem?.name);
+                      }),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        const Text(
-                          'Billable',
-                          style: TextStyle(color: Colors.grey, fontSize: 15),
+                        Column(
+                          children: [
+                            const Text(
+                              'START',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            PlatformTextButton(
+                              padding: const EdgeInsets.symmetric(horizontal: 5),
+                              child: AutoSizeText(
+                                DateFormat('hh:mm aa').format(startDate),
+                              ),
+                              onPressed: () {
+                                showPlatformDatePicker(
+                                  context: context,
+                                  initialDate: startDate,
+                                  firstDate: DateTime.now().subtract(const Duration(days: 3)),
+                                  lastDate: DateTime.now(),
+                                  cupertino: (context, platform) => CupertinoDatePickerData(
+                                    mode: CupertinoDatePickerMode.dateAndTime,
+                                  ),
+                                ).then(
+                                  (DateTime? newDate) => setThisState(
+                                    () {
+                                      startDate = newDate ?? startDate;
+                                      sheet.start = startDate.toIso8601StringWithTimezone();
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                        Text(
-                          billable ? 'Yes' : 'No',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        Column(
+                          children: [
+                            const Text(
+                              'END',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            PlatformTextButton(
+                              padding: const EdgeInsets.symmetric(horizontal: 5),
+                              child: AutoSizeText(
+                                DateFormat('hh:mm aa').format(endDate),
+                              ),
+                              onPressed: () {
+                                showPlatformDatePicker(
+                                  context: context,
+                                  initialDate: endDate,
+                                  firstDate: DateTime.now().subtract(const Duration(days: 3)),
+                                  lastDate: DateTime.now(),
+                                  cupertino: (context, platform) => CupertinoDatePickerData(
+                                    mode: CupertinoDatePickerMode.dateAndTime,
+                                  ),
+                                ).then(
+                                  (DateTime? newDate) => setThisState(
+                                    () {
+                                      endDate = newDate ?? endDate;
+                                      sheet.end = endDate.toIso8601StringWithTimezone();
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    trailing: PlatformSwitch(
-                      value: billable,
-                      onChanged: (newVal) => setState(() {
-                        billable = !billable;
-                      }),
-                    ),
-                  ),
-                  const SizedBox(
-                    height: 10,
-                  ),
-                  const Text('START TIME'),
-                  PlatformElevatedButton(
-                    child: AutoSizeText(
-                      DateFormat('hh:mm aa').format(DateTime.parse(sheet.start!).toLocal()),
-                    ),
-                    onPressed: () {
-                      showPlatformDatePicker(
-                        context: context,
-                        initialDate: startDate,
-                        firstDate: DateTime.now().subtract(const Duration(days: 3)),
-                        lastDate: DateTime.now(),
-                        cupertino: (context, platform) => CupertinoDatePickerData(
-                          mode: CupertinoDatePickerMode.dateAndTime,
+                    _notesInput(sheet: sheet),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: PlatformElevatedButton(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: const Text('SAVE'),
+                            onPressed: () async {
+                              bool updated = await sheetsManager.updateOldSheet(sheet);
+                              if (updated) {
+                                Navigator.pop(NavigationService.navigatorKey.currentContext!);
+                                sheetsManager.getTimesheets();
+                              }
+                            },
+                          ),
                         ),
-                      );
-                    },
-                  ),
-                  const SizedBox(
-                    height: 10,
-                  ),
-                  const Text('END TIME'),
-                  PlatformElevatedButton(
-                    child: AutoSizeText(
-                      DateFormat('hh:mm aa').format(DateTime.parse(sheet.end!).toLocal()),
-                    ),
-                    onPressed: () {
-                      showPlatformDatePicker(
-                        context: context,
-                        initialDate: endDate,
-                        firstDate: DateTime.now().subtract(const Duration(days: 3)),
-                        lastDate: DateTime.now(),
-                        cupertino: (context, platform) => CupertinoDatePickerData(
-                          mode: CupertinoDatePickerMode.dateAndTime,
+                        SizedBox(
+                          width: 100,
+                          child: PlatformElevatedButton(
+                            color: CupertinoColors.destructiveRed,
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: const Text('CANCEL'),
+                            onPressed: () {
+                              sheet = tempSheet;
+                              Navigator.pop(context);
+                              setState(() {
+                                _loadingTimesheets = true;
+                                sheetsManager.serverDataLoading = true;
+                              });
+                              getUserTimeSheets().then((tempSheets) {
+                                sheetsManager.timesheets.clear();
+                                setState(
+                                  () {
+                                    sheetsManager.timesheets = tempSheets;
+                                    sheetsManager.serverDataLoading = false;
+                                    _loadingTimesheets = false;
+                                  },
+                                );
+                              });
+                            },
+                          ),
                         ),
-                      );
-                    },
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1016,19 +1161,35 @@ class _HomeState extends State<Home> {
 
   Widget _userPickerView() {
     String usersString = prefs?.getString('users') ?? '';
+    bool loaded = false;
     List<User> users = convertStringToCodableList(usersString, User.fromJson) ?? [];
-    getUsers().then((newUsers) {
-      setState(() {
-        users = newUsers;
-      });
-    });
-    return Center(
-      child: ListView.builder(
-        itemBuilder: (context, index) {
-          return _userListTile(users[index]);
-        },
-        itemCount: users.length,
-      ),
+    return StatefulBuilder(
+      builder: (context, setThisState) {
+        if (!loaded) {
+          loaded = !loaded;
+          getUsers().then((newUsers) {
+            if (!mounted) return;
+            setThisState(() {
+              users = newUsers;
+              prefs!.setString('users', convertCodableListToString(users) ?? '');
+            });
+          });
+        }
+
+        return Center(
+          child: users.isEmpty
+              ? PlatformCircularProgressIndicator()
+              : ListView.builder(
+                  itemBuilder: (context, index) {
+                    return PlatformWidget(
+                      material: (context, platform) => Material(child: _userListTile(users[index])),
+                      cupertino: (context, platform) => _userListTile(users[index]),
+                    );
+                  },
+                  itemCount: users.length,
+                ),
+        );
+      },
     );
   }
 
@@ -1042,7 +1203,10 @@ class _HomeState extends State<Home> {
           thickness: 1,
         ),
         PlatformListTile(
-          title: Text(user.display_name ?? 'N/A'),
+          title: Text(
+            user.display_name ?? 'N/A',
+            style: TextStyle(color: Colors.black),
+          ),
           trailing: selected ? Icon(PlatformIcons(context).checkMarkCircled) : null,
           onTap: () async {
             globalUser = user;

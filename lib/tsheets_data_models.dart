@@ -63,7 +63,7 @@ class TimeEntry extends Codable {
 }
 
 @JsonSerializable(explicitToJson: true)
-class TimeSheet {
+class TimeSheet extends Codable {
   int? id;
   int? user_id;
   int? jobcode_id;
@@ -90,6 +90,22 @@ class TimeSheet {
     this.duration,
     this.customfields,
   });
+  TimeSheet copy() {
+    return TimeSheet(
+      id: id,
+      user_id: user_id,
+      jobcode_id: jobcode_id,
+      locked: locked,
+      notes: notes,
+      on_the_clock: on_the_clock,
+      created_by_user_id: created_by_user_id,
+      start: start,
+      end: end,
+      date: date,
+      duration: duration,
+      customfields: customfields,
+    );
+  }
 
   String get billable {
     int? billableId = sheetsManager.customFields.firstWhereOrNull((element) => element.name == 'Billable')?.id;

@@ -224,7 +224,7 @@ class SheetsManager extends ChangeNotifier {
       getCurrentTimesheet().then((value) async {
         firstLoad = false;
         notifyListeners();
-        await loadServerData();
+        await loadServerData(firstLoad: true);
       });
     });
   }
@@ -361,7 +361,8 @@ class SheetsManager extends ChangeNotifier {
     _decodeResponse(response.body, false);
   }
 
-  Future<void> updateOldSheet(TimeSheet sheet) async {
+  Future<bool> updateOldSheet(TimeSheet sheet) async {
+    showLoadingIndicator(NavigationService.navigatorKey.currentContext!, 'loading...');
     serverDataLoading = true;
     notifyListeners();
     Map<String, dynamic> body = {
@@ -370,6 +371,7 @@ class SheetsManager extends ChangeNotifier {
           'id': sheet.id,
           'jobcode_id': sheet.jobcode_id?.toString(),
           'start': sheet.start,
+          'end': sheet.end,
           'notes': sheet.notes,
           'customfields': {
             '336090': sheet.billable,
@@ -387,14 +389,13 @@ class SheetsManager extends ChangeNotifier {
       headers: {
         "Authorization": "Bearer ${globalUser?.authToken ?? koauthTokenBain}",
         'Content-Type': 'application/json',
-        // HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}',
-        // HttpHeaders.contentTypeHeader: 'application/json',
       },
       body: jsonEncode(body),
     );
     serverDataLoading = false;
     notifyListeners();
-    _decodeResponse(response.body, false);
+    Navigator.pop(NavigationService.navigatorKey.currentContext!);
+    return _decodeResponse(response.body, false);
   }
 
   Future<bool> clockOut({bool retry = false}) async {
@@ -555,8 +556,15 @@ class SheetsManager extends ChangeNotifier {
     }
   }
 
+  Future<void> _getTimesheetsLocal() async {
+    String listString = prefs!.getString('timesheets') ?? '';
+    timesheets = convertStringToCodableList(listString, TimeSheet.fromJson) ?? [];
+    notifyListeners();
+  }
+
   Future<void> getTimesheets() async {
     timesheets = await getUserTimeSheets();
+    prefs!.setString('timesheets', convertCodableListToString(timesheets) ?? '');
     notifyListeners();
   }
 
@@ -718,16 +726,19 @@ class SheetsManager extends ChangeNotifier {
     _getCustomFieldsLocal();
     _getCustomFieldItemFiltersLocal();
     getServiceItemForUserLocal();
+    _getTimesheetsLocal();
     notifyListeners();
   }
 
-  Future<void> loadServerData() async {
+  Future<void> loadServerData({bool firstLoad = false}) async {
     serverDataLoading = true;
     notifyListeners();
-    await getUsers();
-    await _getProjects();
-    await _getAllJobCodes();
-    await _getAssignments();
+    if (firstLoad) {
+      await getUsers();
+      await _getProjects();
+      await _getAllJobCodes();
+      await _getAssignments();
+    }
     await _getCustomFields();
     await _getCustomFieldItemFilters();
     await getServiceItemForUser();

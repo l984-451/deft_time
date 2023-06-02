@@ -60,9 +60,13 @@ class _CustomerModalState extends State<CustomerModal> {
           separatorBuilder: (context, index) => const Divider(),
           itemBuilder: (context, index) {
             if (index <= _defaultJobCounter - 1) {
-              return _buildListTile(context, localJobs[index], true);
+              return PlatformWidget(
+                  material: (context, platform) => Material(child: _buildListTile(context, localJobs[index], true)),
+                  cupertino: (context, platform) => _buildListTile(context, localJobs[index], true));
             } else {
-              return _buildListTile(context, localJobs[index], false);
+              return PlatformWidget(
+                  material: (context, platform) => Material(child: _buildListTile(context, localJobs[index], false)),
+                  cupertino: (context, platform) => _buildListTile(context, localJobs[index], false));
             }
           },
           itemCount: localJobs.length,
@@ -150,11 +154,11 @@ class _CustomerModalState extends State<CustomerModal> {
       trailing: _trailingWidget(item, isDefault),
       onTap: () {
         if (isDefault) {
-          widget.callback(item.id);
+          widget.callback(item.id, 1);
         } else if (item.has_children) {
           showCupertinoModalBottomSheet(context: context, builder: (_) => CustomerDetailsPage(callback: widget.callback, jobCode: item));
         } else {
-          widget.callback(item.id);
+          widget.callback(item.id, 1);
         }
       },
     );
@@ -173,7 +177,9 @@ class CustomerDetailsPage extends StatelessWidget {
       child: ListView.separated(
         separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
-          return _buildListTile(context, jobCode.subJobs[index]);
+          return PlatformWidget(
+              material: (context, platform) => Material(child: _buildListTile(context, jobCode.subJobs[index])),
+              cupertino: (context, platform) => _buildListTile(context, jobCode.subJobs[index]));
         },
         itemCount: jobCode.subJobs.length,
       ),
@@ -203,7 +209,7 @@ class CustomerDetailsPage extends StatelessWidget {
             ),
           );
         } else {
-          callback(item.id);
+          callback(item.id, 2);
         }
       },
     );
@@ -222,7 +228,9 @@ class ProjectPage extends StatelessWidget {
       child: ListView.separated(
         separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
-          return _buildListTile(context, projects[index]);
+          return PlatformWidget(
+              material: (context, platform) => Material(child: _buildListTile(context, projects[index])),
+              cupertino: (context, platform) => _buildListTile(context, projects[index]));
         },
         itemCount: projects.length,
       ),
@@ -236,7 +244,7 @@ class ProjectPage extends StatelessWidget {
         style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
       ),
       onTap: () {
-        callback(item.jobcode_id);
+        callback(item.jobcode_id, 3);
       },
     );
   }
