@@ -58,6 +58,13 @@ class _DebugMenuState extends State<DebugMenu> {
           inspect(manager.assignedJobs);
         }
       ),
+      (
+        'Get Service Items',
+        () async {
+          await manager.getServiceItemForUser();
+          inspect(manager.serviceItems);
+        }
+      ),
     ];
     for (var child in functionList) {
       children.add(_buildDebugButton(child.$1, child.$2));

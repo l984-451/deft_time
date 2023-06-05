@@ -502,7 +502,7 @@ class _HomeState extends State<Home> {
           context: context,
           builder: (context) => CustomerModal(
             prefs: prefs!,
-            callback: (int id) async {
+            callback: (int id, int index) async {
               Navigator.of(context).popUntil((route) => route.isFirst);
               if (await sheetsManager.clockOut()) {
                 setState(() {

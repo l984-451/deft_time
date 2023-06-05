@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:io';
 import 'dart:convert';
 import 'package:codable/codable.dart';
@@ -136,24 +137,6 @@ Future<List<JobCodeAssignment>> getJobcodeAssignments({int page = 1}) async {
   return codes;
 }
 
-Future<List<CustomFields>> getCustomFields({int page = 1}) async {
-  List<CustomFields> customFields = [];
-  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfields?page=$page');
-  final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
-
-  final Map<String, dynamic> body = json.decode(response.body);
-  final Map<String, dynamic> customFieldsMap = body['results']['customfields'];
-  if ((body['more'] == true)) {
-    print('more CUSTOM FIELDS to get');
-    customFields += await _checkForMore(getCustomFields, page);
-  }
-  for (Map<String, dynamic> jobCode in customFieldsMap.values) {
-    CustomFields code = CustomFields.fromJson(jobCode);
-    customFields.add(code);
-  }
-  return customFields;
-}
-
 Future<List<Project>> getProjects({int page = 1}) async {
   List<Project> projectsTemp = [];
   Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/projects?page=$page');
@@ -170,6 +153,24 @@ Future<List<Project>> getProjects({int page = 1}) async {
     projectsTemp.add(code);
   }
   return projectsTemp;
+}
+
+Future<List<CustomFields>> getCustomFields({int page = 1}) async {
+  List<CustomFields> customFields = [];
+  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfields?page=$page');
+  final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
+
+  final Map<String, dynamic> body = json.decode(response.body);
+  final Map<String, dynamic> customFieldsMap = body['results']['customfields'];
+  if ((body['more'] == true)) {
+    print('more CUSTOM FIELDS to get');
+    customFields += await _checkForMore(getCustomFields, page);
+  }
+  for (Map<String, dynamic> jobCode in customFieldsMap.values) {
+    CustomFields code = CustomFields.fromJson(jobCode);
+    customFields.add(code);
+  }
+  return customFields;
 }
 
 Future<List<CustomFieldItem>> getCustomFieldItems(int fieldId, {int page = 1}) async {
@@ -194,7 +195,7 @@ Future<List<CustomFieldItemFilter>> getCustomFieldItemFilters({int page = 1}) as
   List<CustomFieldItemFilter> customFieldItemsFilters = [];
   String? userId = globalUser?.id.toString();
   if (userId == null) return [];
-  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfielditem_filters?user_id=$userId&page=$page');
+  Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/customfielditem_filters?user_id=$userId&page=$page&include_user_group=true');
   final response = await http.get(requestUri, headers: {HttpHeaders.authorizationHeader: 'Bearer ${globalUser?.authToken ?? koauthTokenBain}'});
   final Map<String, dynamic> body = json.decode(response.body);
 
@@ -207,6 +208,7 @@ Future<List<CustomFieldItemFilter>> getCustomFieldItemFilters({int page = 1}) as
     CustomFieldItemFilter code = CustomFieldItemFilter.fromJson(filter);
     customFieldItemsFilters.add(code);
   }
+  inspect(customFieldItemsFilters);
   return customFieldItemsFilters;
 }
 
@@ -426,10 +428,7 @@ class SheetsManager extends ChangeNotifier {
           }
         ],
       };
-      TimeSheet tempSheet = sheetsManager.currentSheet!;
-      // currentSheet = null;
-      // duration.value = 0;
-      // durationTimer?.cancel();
+      TimeSheet tempSheet = sheetsManager.currentSheet!.copy();
       notifyListeners();
 
       Uri requestUri = Uri.parse('https://rest.tsheets.com/api/v1/timesheets');
