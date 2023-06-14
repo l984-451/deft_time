@@ -675,7 +675,9 @@ class SheetsManager extends ChangeNotifier {
       startTime = DateTime.parse(sheetsManager.currentSheet!.start!).toLocal();
       billable = currentSheet!.billable;
       serviceItem = serviceItems.firstWhereOrNull((element) => element.name == currentSheet!.customfields!['320940']);
-      notesController.text = currentSheet!.notes!;
+      if (notesController.text.trim().isEmpty || notesController.text == '') {
+        notesController.text = currentSheet!.notes!;
+      }
       createTimer();
     } else {
       durationTimer?.cancel();
@@ -692,7 +694,7 @@ class SheetsManager extends ChangeNotifier {
         customer = x.job;
         billable = x.billable;
         serviceItem = x.serviceItem;
-        notesController.text = x.notes ?? '';
+        notesController.text = '';
       } else {
         customer = null;
         billable = null;

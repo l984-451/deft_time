@@ -396,6 +396,9 @@ class _HomeState extends State<Home> {
                       if (!await sheetsManager.clockOut()) {
                         return;
                       }
+                      sheetsManager.startTime = DateTime.now();
+                    } else {
+                      sheetsManager.startTime = sheetsManager.startTime;
                     }
                     sheetsManager.billable = job.billable;
                     sheetsManager.customer = job.job;
