@@ -113,6 +113,7 @@ class TimeSheet extends Codable {
   }
 
   factory TimeSheet.fromJson(Map<String, dynamic> json) => _$TimeSheetFromJson(json);
+  @override
   Map<String, dynamic> toJson() => _$TimeSheetToJson(this);
 }
 

@@ -733,18 +733,19 @@ class SheetsManager extends ChangeNotifier {
 
   Future<void> loadServerData({bool firstLoad = false}) async {
     serverDataLoading = true;
+    if (firstLoad) serverDataLoading = false;
     notifyListeners();
+    await _getCustomFields();
+    await _getCustomFieldItemFilters();
+    await getServiceItemForUser();
+    await getTimesheets();
+    await getCurrentTimesheet();
     if (firstLoad) {
       await getUsers();
       await _getProjects();
       await _getAllJobCodes();
       await _getAssignments();
     }
-    await _getCustomFields();
-    await _getCustomFieldItemFilters();
-    await getServiceItemForUser();
-    await getTimesheets();
-    await getCurrentTimesheet();
     _afterCurrentSheetChecked();
     serverDataLoading = false;
     notifyListeners();

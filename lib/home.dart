@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer';
 import 'dart:ui';
 import 'package:adaptive_action_sheet/adaptive_action_sheet.dart';
 import 'package:auto_size_text/auto_size_text.dart';
@@ -1208,7 +1207,7 @@ class _HomeState extends State<Home> {
         PlatformListTile(
           title: Text(
             user.display_name ?? 'N/A',
-            style: TextStyle(color: Colors.black),
+            style: const TextStyle(color: Colors.black),
           ),
           trailing: selected ? Icon(PlatformIcons(context).checkMarkCircled) : null,
           onTap: () async {
