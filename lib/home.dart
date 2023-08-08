@@ -36,9 +36,16 @@ class _HomeState extends State<Home> {
 
   bool _loadingTimesheets = false;
 
+  final ValueNotifier<DateTime> _startTime = ValueNotifier(DateTime.now());
+
   @override
   void initState() {
     super.initState();
+
+    Timer.periodic(const Duration(seconds: 5), (timer) {
+      _startTime.value = DateTime.now();
+    });
+
     SharedPreferences.getInstance().then((localPrefs) {
       prefs ??= localPrefs;
       String? user = prefs!.getString('user');
@@ -210,7 +217,18 @@ class _HomeState extends State<Home> {
                     padding: const EdgeInsets.symmetric(
                       vertical: 15,
                     ),
-                    child: Text('Start Time: ${DateFormat('jm').format(sheetsManager.startTime ?? DateTime.now())}'),
+                    child: ValueListenableBuilder(
+                      valueListenable: _startTime,
+                      builder: (context, localTime, __) {
+                        String time = 'Start Time: ';
+                        if (sheetsManager.currentSheet != null) {
+                          time += DateFormat('jm').format(sheetsManager.startTime ?? localTime);
+                        } else {
+                          time += DateFormat('jm').format(localTime);
+                        }
+                        return Text(time);
+                      },
+                    ),
                     onPressed: () {
                       showPlatformDatePicker(
                           context: context,

@@ -106,7 +106,7 @@ Future<List<JobCodes>> getJobcodes({int page = 1}) async {
   final Map<String, dynamic> jobCodeMap = body['results']['jobcodes'];
 
   if ((body['more'] == true)) {
-    print('more JOBCODES to get');
+    //print('more JOBCODES to get');
     codes += await _checkForMore(getJobcodes, page);
   }
   for (Map<String, dynamic> jobCode in jobCodeMap.values) {
@@ -126,7 +126,7 @@ Future<List<JobCodeAssignment>> getJobcodeAssignments({int page = 1}) async {
   final Map<String, dynamic> jobCodeMap = body['results']['jobcode_assignments'];
 
   if ((body['more'] == true)) {
-    print('more JOBCODE ASSIGNMENTS to get');
+    //print('more JOBCODE ASSIGNMENTS to get');
     codes += await _checkForMore(getJobcodeAssignments, page);
   }
 
@@ -694,12 +694,12 @@ class SheetsManager extends ChangeNotifier {
         customer = x.job;
         billable = x.billable;
         serviceItem = x.serviceItem;
-        notesController.text = '';
+        // notesController.text = '';
       } else {
         customer = null;
         billable = null;
         serviceItem = null;
-        notesController.text = '';
+        // notesController.text = '';
       }
     }
     notifyListeners();
